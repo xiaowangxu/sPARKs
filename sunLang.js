@@ -581,6 +581,15 @@ export function SPARK_get(term) {
 	}
 }
 
+export function SPARK_get_First(term) {
+	let ans = [];
+	for (let key in Terms) {
+		let first = Terms[key]().get_First();
+		ans.push({ term: key, first: first });
+	}
+	return ans;
+}
+
 export function SPARK_clear() {
 	Terms = {}
 }
@@ -635,6 +644,7 @@ export class SPARK_Match {
 	}
 
 	match(tokens, idx = 0) {
+		let $idx = idx
 		this.nodes = [];
 		let oldidx = idx;
 		let ans, nextidx, node, error, erroridx = undefined;
@@ -648,11 +658,32 @@ export class SPARK_Match {
 				this.nodes.push(node);
 			idx = nextidx;
 		}
-		return [true, idx, this.match_func(this, undefined), undefined, undefined];
+		let ast = this.match_func(this, undefined)
+		if (ast !== undefined) {
+			ast[1].$start = $idx
+			ast[1].$end = idx - 1
+		}
+		return [true, idx, ast, undefined, undefined];
 	}
 
 	check(term_name, expanded, traveled = []) {
 		this.subs[0].check(term_name, [expanded, `<Match>\t\t\tfirst of ${this.toString()}`].join(" \n-> "), traveled);
+	}
+
+	get_First(last = []) {
+		for (let i = 0; i < this.subs.length; i++) {
+			if (this.subs[i] instanceof Once_or_None) {
+				this.subs[i].get_First(last)
+			}
+			else if (this.subs[i] instanceof More_or_None) {
+				this.subs[i].get_First(last)
+			}
+			else {
+				this.subs[i].get_First(last)
+				break;
+			}
+		}
+		return last
 	}
 }
 
@@ -687,6 +718,11 @@ export class Once_or_None extends SPARK_Match {
 	check(term_name, expanded, traveled = []) {
 		this.subs.check(term_name, [expanded, `<OnceOrNone>\t\t${this.toString()}`].join(" \n-> "), traveled);
 	}
+
+	get_First(last = []) {
+		this.subs.get_First(last);
+		return last
+	}
 }
 
 export class More_or_None extends SPARK_Match {
@@ -705,6 +741,7 @@ export class More_or_None extends SPARK_Match {
 	}
 
 	match(tokens, idx = 0) {
+		let $idx = idx
 		this.nodes = [];
 		let ans, nextidx = idx, node, error, erroridx = undefined;
 		do {
@@ -718,10 +755,20 @@ export class More_or_None extends SPARK_Match {
 		// console.log(">>>", nextidx, erroridx);
 
 		if (erroridx === nextidx) {
-			return [true, nextidx, this.match_func(this, undefined), undefined, undefined];
+			let ast = this.match_func(this, undefined)
+			if (ast !== undefined) {
+				ast[1].$start = $idx
+				ast[1].$end = nextidx - 1
+			}
+			return [true, nextidx, ast, undefined, undefined];
 		}
 		else {
-			return [false, nextidx, this.match_func(this, undefined), error, erroridx];
+			let ast = this.match_func(this, undefined)
+			if (ast !== undefined) {
+				ast[1].$start = $idx
+				ast[1].$end = nextidx - 1
+			}
+			return [false, nextidx, ast, error, erroridx];
 		}
 		// if (erroridx > nextidx && idx !== nextidx) {
 		// 	console.log(">>> error", idx, nextidx, erroridx, error.message)
@@ -736,6 +783,11 @@ export class More_or_None extends SPARK_Match {
 
 	check(term_name, expanded, traveled = []) {
 		this.subs.check(term_name, [expanded, `<MoreOrNone>\t\t${this.toString()}`].join(" \n-> "), traveled);
+	}
+
+	get_First(last = []) {
+		this.subs.get_First(last);
+		return last
 	}
 }
 
@@ -783,6 +835,13 @@ export class ChooseOne extends SPARK_Match {
 			s.check(term_name, [expanded, `<ChooseOne>\t\twith ${this.toString()} select ${s.toString()}`].join(" \n-> "), traveled);
 		})
 	}
+
+	get_First(last = []) {
+		this.subs.forEach((s) => {
+			s.get_First(last)
+		})
+		return last
+	}
 }
 
 export class MatchToken extends SPARK_Match {
@@ -797,16 +856,27 @@ export class MatchToken extends SPARK_Match {
 	}
 
 	match(tokens, idx = 0) {
+		let $idx = idx;
 		let token = tokens[idx];
 		if (token !== undefined) {
 			if (token.type === this.token && (this.value === undefined || token.value === this.value)) {
-				return [true, idx + 1, this.match_func(this, token), undefined, undefined];
+				let ast = this.match_func(this, token)
+				if (ast !== undefined) {
+					ast[1].$start = $idx
+					ast[1].$end = $idx
+				}
+				return [true, idx + 1, ast, undefined, undefined];
 			}
 			return [false, idx, undefined, new SPARK_Error('TokenUnmatchError', `expected ${this.value !== undefined ? this.value : TOKENS[this.token]}\nbut found ${token.value}`, token), idx];
 		}
 	}
 
 	check() {
+	}
+
+	get_First(last = []) {
+		last.push({ type: this.token, value: this.value })
+		return last
 	}
 }
 
@@ -851,6 +921,12 @@ export class MatchTerm extends SPARK_Match {
 			let term = SPARK_get(this.term_name);
 			term.check(term_name, [expanded, `<Term>\t\t\t${this.toString()} expand`].join(" \n-> "), traveled.concat(this.term_name));
 		}
+	}
+
+	get_First(last = []) {
+		let term = SPARK_get(this.term_name);
+		term.get_First(last);
+		return last
 	}
 }
 
@@ -972,6 +1048,7 @@ SPARK_registe('变量说明', () => {
 SPARK_registe('因子', () => {
 	return new ChooseOne([
 		new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] }),
+		new MatchToken("TK_FLOAT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'real', value: token.value }] }),
 		new MatchToken("TK_STRING", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'string', value: token.value }] }),
 		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
 		new SPARK_Match([
@@ -990,8 +1067,8 @@ SPARK_registe("项", () => {
 		new More_or_None([
 			new SPARK_Match([
 				new ChooseOne([
-					new MatchToken("TK_MULTIPIY", undefined, (match, token) => { return ['op', "*"] }),
-					new MatchToken("TK_DIVIDE", undefined, (match, token) => { return ['op', "/"] })
+					new MatchToken("TK_MULTIPIY", undefined, (match, token) => { return ['op', { type: 'binop', value: "*" }] }),
+					new MatchToken("TK_DIVIDE", undefined, (match, token) => { return ['op', { type: 'binop', value: "/" }] })
 				]),
 				new MatchTerm('因子')
 			], (match, token) => { return ['binop', match.nodes] })
@@ -1005,7 +1082,7 @@ SPARK_registe("项", () => {
 		}
 		tree.forEach((op) => {
 			let value = op[1][1][1];
-			node = { type: 'binop', value: op[1][0][1], sub: [sub, value] };
+			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value] };
 			sub = node;
 		})
 		return ['binop', node]
@@ -1016,14 +1093,14 @@ SPARK_registe("表达式1", () => {
 	return new SPARK_Match([
 		new Once_or_None([
 			new ChooseOne([
-				new MatchToken("TK_ADD", undefined, (match, token) => { return ['type', "+"] }),
-				new MatchToken("TK_MINUS", undefined, (match, token) => { return ['type', "-"] })
+				new MatchToken("TK_ADD", undefined, (match, token) => { return ['type', { type: 'binop', value: "+" }] }),
+				new MatchToken("TK_MINUS", undefined, (match, token) => { return ['type', { type: 'binop', value: "-" }] })
 			])
 		]),
 		new MatchTerm('项')
 	], (match, token) => {
 		if (match.nodes[0] && match.nodes[1])
-			return ['uniop', { type: 'uniop', value: match.nodes[0][1], sub: [match.nodes[1][1]] }]
+			return ['uniop', { type: 'uniop', value: match.nodes[0][1].value, sub: [match.nodes[1][1]] }]
 		else {
 			return match.nodes[0]
 		}
@@ -1036,8 +1113,8 @@ SPARK_registe("表达式", () => {
 		new More_or_None([
 			new SPARK_Match([
 				new ChooseOne([
-					new MatchToken("TK_ADD", undefined, (match, token) => { return ['op', "+"] }),
-					new MatchToken("TK_MINUS", undefined, (match, token) => { return ['op', "-"] }),
+					new MatchToken("TK_ADD", undefined, (match, token) => { return ['op', { type: 'binop', value: "+" }] }),
+					new MatchToken("TK_MINUS", undefined, (match, token) => { return ['op', { type: 'binop', value: "-" }] }),
 				]),
 				new MatchTerm('项')
 			], (match, token) => { return ['binop', match.nodes] })
@@ -1051,7 +1128,7 @@ SPARK_registe("表达式", () => {
 		}
 		tree.forEach((op) => {
 			let value = op[1][1][1];
-			node = { type: 'binop', value: op[1][0][1], sub: [sub, value] };
+			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value] };
 			sub = node;
 		})
 		return ['binop', node]
@@ -1060,12 +1137,12 @@ SPARK_registe("表达式", () => {
 
 SPARK_registe('关系运算符', () => {
 	return new ChooseOne([
-		new MatchToken("TK_EQUAL", undefined, (match, token) => { return ['value', '=='] }),
-		new MatchToken("TK_NOTEQUAL", undefined, (match, token) => { return ['value', '!='] }),
-		new MatchToken("TK_LESS", undefined, (match, token) => { return ['value', '<'] }),
-		new MatchToken("TK_GREATER", undefined, (match, token) => { return ['value', '>'] }),
-		new MatchToken("TK_LESSE", undefined, (match, token) => { return ['value', '<='] }),
-		new MatchToken("TK_GREATERE", undefined, (match, token) => { return ['value', '>='] }),
+		new MatchToken("TK_EQUAL", undefined, (match, token) => { return ['value', { type: 'binop', value: '==' }] }),
+		new MatchToken("TK_NOTEQUAL", undefined, (match, token) => { return ['value', { type: 'binop', value: '!=' }] }),
+		new MatchToken("TK_LESS", undefined, (match, token) => { return ['value', { type: 'binop', value: '<' }] }),
+		new MatchToken("TK_GREATER", undefined, (match, token) => { return ['value', { type: 'binop', value: '>' }] }),
+		new MatchToken("TK_LESSE", undefined, (match, token) => { return ['value', { type: 'binop', value: '<=' }] }),
+		new MatchToken("TK_GREATERE", undefined, (match, token) => { return ['value', { type: 'binop', value: '>=' }] }),
 	])
 })
 
@@ -1078,7 +1155,7 @@ SPARK_registe("条件表达式", () => {
 		], (match, token) => {
 			return ['binop', {
 				type: 'binop',
-				value: match.nodes[1][1],
+				value: match.nodes[1][1].value,
 				sub: [
 					match.nodes[0][1],
 					match.nodes[2][1]
@@ -1333,12 +1410,48 @@ Array.prototype.tab = function () {
 	return this.join("\n").split('\n').map((i) => "    " + i).join('\n')
 }
 
+// walker
+export class Walker {
+	constructor(ast, tokens, sourcescript) {
+		this.ast = ast;
+		this.tokens = tokens;
+		this.sourcescript = sourcescript;
+	}
+
+	walk(func = () => { }) {
+		console.log(this.ast)
+	}
+}
+
 // translater
 export class JSConverter {
 	constructor(ast) {
 		this.ast = ast;
 		this.target = '';
+		this.errors = [];
 		this.uid = BigInt(0);
+		this.scopes = [];
+		this.currentscope = null;
+	}
+
+	registe_Identifier(identifier) {
+		if (this.currentscope[identifier] !== undefined) return false;
+		else {
+			this.currentscope[identifier] = `$var${this.get_uid()}`
+			return this.currentscope[identifier]
+		}
+	}
+
+	new_Scope() {
+		let newscope = {}
+		this.scopes.push(newscope);
+		this.currentscope = newscope;
+	}
+
+	exit_Scope() {
+		if (this.scopes.length > 0) {
+			this.currentscope = this.scopes.pop();
+		}
 	}
 
 	get_uid() {
@@ -1383,6 +1496,10 @@ export class JSConverter {
 
 	funcdef(ast, func = true) {
 		let identifier = ast.identifier
+		let ans = this.registe_Identifier(identifier)
+		if (!ans) {
+			this.errors.push({ message: `标识符 "${identifier}" 重定义`, start: ast.$start, end: ast.$end })
+		}
 		let body = this.subprogram(ast.block).split('\n').tab()
 		return `function ${identifier}() {\n${body}\n}`
 	}
@@ -1444,16 +1561,26 @@ export class JSConverter {
 	}
 
 	subprogram(ast) {
+		this.new_Scope();
+		let that = this;
 		let consts = ast.consts;
 		let arr = []
 		let constdefs = consts.forEach((s) => {
 			s.consts.forEach((c) => {
+				let ans = that.registe_Identifier(c.identifier)
+				if (!ans) {
+					that.errors.push({ message: `标识符 "${c.identifier}" 重定义`, start: c.$start, end: c.$end })
+				}
 				arr.push(`const ${c.identifier} = ${c.value}`)
 			})
 		})
 		let vars = ast.vars;
 		let vardefs = vars.forEach((s) => {
 			s.vars.forEach((c) => {
+				let ans = that.registe_Identifier(c.identifier)
+				if (!ans) {
+					that.errors.push({ message: `标识符 "${c.identifier}" 重定义`, start: c.$start, end: c.$end })
+				}
 				arr.push(`let ${c.identifier}${c.typedef !== null && c.typedef.type === 'arraytype' ? '[]' : ''}${c.default !== null ? ' = ' + this.exp(c.default) : ''}`)
 			})
 		})
@@ -1465,7 +1592,7 @@ export class JSConverter {
 			let subs = ast.subs;
 			arr.push(this.get(subs))
 		}
-
+		this.exit_Scope()
 		return `${arr.join('\n')}`;
 	}
 
