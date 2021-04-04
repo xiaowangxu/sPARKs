@@ -1,0 +1,192 @@
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>PL/0 present by sPARks</title>
+</head>
+
+<body style="display: flex; flex-direction: row; gap: 10px;height: 100vh;
+box-sizing: border-box;
+margin: 0px; padding: 2px 10px 10px 10px;">
+
+	<div
+		style="overflow: hidden; height: 100%;width: 20%; min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
+		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Coder</h3>
+		<textarea style="height: 50%;width: 100%;resize: vertical;  font-family: consolas; " oninput="input(this.value)"
+			id="input" autofocus># sPARks PL/0 Hello World !!
+# 在这里键入PL/0 程序
+var n, i, j, c, sum;
+
+procedure fact;
+  begin
+    c := 1;
+    j := 1;
+    while j <=i do
+      begin
+        c := c*j;
+        j := j+1;
+      end
+  end
+;
+
+begin
+  sum := 0;
+  read(n);
+  i := 1;
+  while i <= n do
+    begin
+      call fact;
+      sum := sum+c;
+      i := i+1;
+    end;
+  write(sum);
+end.
+</textarea>
+		<div style="display: flex;flex-direction: row; justify-content: space-between; padding-right: 12px;">
+			<h3 style="margin: 0px 12px;font-family: consolas;">JavaScript</h3>
+			<button onclick="test()" style="font-family: consolas;">Run Code</button>
+		</div>
+		<pre style="flex:1; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; font-family: consolas; overflow-y: auto; color: white; box-sizing: border-box;"
+			id="count"></pre>
+		<h3 style="margin: 0px 12px;font-family: consolas;">Output</h3>
+		<pre style="background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; font-family: consolas; overflow-y: auto; color: white; box-sizing: border-box;"
+			id="console"></pre>
+	</div>
+	<div
+		style="overflow: hidden; height: 100%;width: 300px; min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
+		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Lexer</h3>
+		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
+			id="tokens"></pre>
+	</div>
+	<div
+		style="overflow: hidden; height: 100%;width: 500px; min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px; box-sizing: border-box;">
+		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Parser</h3>
+		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
+			id="parser"></pre>
+	</div>
+	<div
+		style="overflow: hidden; height: 100%;flex:1; min-width: 20%; max-width: 80%; font-family: consolas; display: flex;flex-direction: column; gap: 10px">
+		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">AST</h3>
+		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
+			id="ast"></pre>
+	</div>
+	<!-- <pre style="flex: 1; width: 100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas;"
+		id="parser"></pre>
+	<pre style="flex:1; width: 100px; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow-y: auto;"
+		id="ast"></pre> -->
+</body>
+
+<script type="module">
+	import * as SUN from './sunLang.js';
+	// import * as Data from './demo.sun';
+
+	window.test = function () {
+		let str = eval(document.getElementById('count').innerText)
+		document.getElementById("console").innerHTML = str.split("\n").filter((s) => s !== '').map((s) => `<a style="color: rgb(0,255,0);">${">> "}</a>${s}`).join("\n")
+	}
+
+	window.input = function (val) {
+		console.clear()
+		let source = new SUN.SourceScript(val, "terminal");
+
+		let lexer = new SUN.Lexer(source);
+		lexer.tokenize();
+
+		// document.getElementById('tokens').innerText = lexer.tokens.map(i => (i.type)).join('\n')
+		// lexer.errors.forEach(e => {
+		// 	console.log(e.type + ' : ' + e.message + "\n" + source.get_ScriptPortion(e.start, e.end));
+		// })
+
+		// let identifiers = lexer.tokens.filter(t => (t.type === 'TK_IDENTIFIER'))
+
+		// let count = {}
+
+		// identifiers.forEach((t) => {
+		// 	let val = t.value.toLowerCase()
+		// 	if (count[val] !== undefined) {
+		// 		count[val]++;
+		// 	}
+		// 	else {
+		// 		count[val] = 1;
+		// 	}
+		// })
+
+
+
+		let ans = []
+		lexer.errors.forEach(e => {
+			let [s, starter] = source.get_ScriptPortion(e.start, e.end, '^', "red")
+			ans.push(s + `${starter}<a style="color: red;">${e.type} ${e.message}</a>\n`);
+			// ans.push(e.type + ' : ' + e.message + "\n" + source.get_ScriptPortion(e.start, e.end, '^', 'red')[0]);
+		})
+		lexer.tokens.forEach(t => {
+			ans.push(source.get_ScriptPortion(t.start, t.end, undefined, "rgb(0,255,0)", false)[0] + ` (${t.type}, '${t.value}')` + '\n');
+		})
+
+		document.getElementById('tokens').innerHTML = ans.join('')
+
+		ans = []
+
+
+
+		let ast = SUN.SPARK_get("程序").match(lexer.tokens);
+		console.log(ast);
+
+		if (ast[2] !== undefined)
+			document.getElementById('ast').innerText = JSON.stringify(ast[2][1], null, 2)
+		else
+			document.getElementById('ast').innerText = 'Error !'
+
+		if (ast[3] !== undefined) {
+			let err = ast[3];
+			while (err !== undefined) {
+				let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
+				ans.push(s + `${starter}<a style="color: red;">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `<a style="color: red;">  ${i}</a>`).join('\n')}</a>\n`);
+				err = err.last
+			}
+			document.getElementById('parser').innerHTML = ans.join('')
+			document.getElementById('count').innerText = "no code translated"
+		}
+		else {
+			document.getElementById('parser').innerHTML = 'OK'
+			let jsc = new SUN.JSConverter(ast[2][1])
+			document.getElementById('count').innerText = "// Translated by sun sPARks" + '\n' + jsc.convert()
+		}
+
+
+	}
+
+	window.input(`# sPARks PL/0 Hello World !!
+# 在这里键入PL/0 程序
+var n, i, j, c, sum;
+
+procedure fact;
+  begin
+    c := 1;
+    j := 1;
+    while j <=i do
+      begin
+        c := c*j;
+        j := j+1;
+      end
+  end
+;
+
+begin
+  sum := 0;
+  read(n);
+  i := 1;
+  while i <= n do
+    begin
+      call fact;
+      sum := sum+c;
+      i := i+1;
+    end;
+  write(sum);
+end.`)
+
+	// SUN.SPARK_print();
+</script>
+
+</html>
