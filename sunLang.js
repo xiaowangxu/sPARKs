@@ -159,8 +159,14 @@ export class Token {
 	constructor(type, val, start, end) {
 		this.type = type;
 		this.value = val;
-		this.start = start.clone();
-		this.end = end.clone();
+		if (start)
+			this.start = start.clone();
+		if (end)
+			this.end = end.clone();
+	}
+
+	equal(token) {
+		return this.type === token.type && this.value === token.value;
 	}
 }
 
@@ -875,7 +881,7 @@ export class MatchToken extends SPARK_Match {
 	}
 
 	get_First(last = []) {
-		last.push({ type: this.token, value: this.value })
+		last.push(new Token(this.token, this.value))
 		return last
 	}
 }
