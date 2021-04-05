@@ -9,9 +9,9 @@ demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，�
 ### 包含
 - ```SourceScript``` 源代码输入，提供```get/peek```方法，同时配合```ScriptPosition```可输出源代码的指定位置并高亮
 - ```ScriptPosition``` 指出源码中的一段
-- ```Lexer``` 一个简单的此法分析器，和相关类库（```BaseError```/```Token```）
+- ```Lexer``` 一个简单的词法分析器，和相关类库（```BaseError```/```Token```）
 - ```sPARks``` 递归下降语法解析
-- ```JSConverter``` PL0 AST 到 JavaScript 翻译器
+- ```JSConverter``` PL/0 AST 到 JavaScript 翻译器
 
 ----
 ### 基本使用
@@ -46,7 +46,7 @@ SPARK_get("条件语句")	// 获取一个非终结符的解析器
 SPARK_check()		// 检查文法是否含有左递归
 SPARK_print()		// 输出BNF文法
 
-let source = new SUN.SourceScript(`
+let source = new SourceScript(`
 	# sPARks PL/0 Hello World !!
 	# 在这里键入PL/0 程序
 	if a < b then
@@ -76,7 +76,7 @@ sPARks
 - [x] 左递归检查
 - [ ] 默认AST格式
 - [ ] 更友好的错误提示
-- [ ] 更泛化的此法分析器
+- [ ] 更泛化的词法分析器
 - [x] 生成First集合
 - [ ] 生成Follow集合 // 下一版本
 - [ ] 提供LL(1)分析器
