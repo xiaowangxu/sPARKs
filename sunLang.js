@@ -796,6 +796,7 @@ export class Match {
 	}
 
 	get_Follow(term, last = [], layer = 0) {
+		// console.log(last)
 		// console.log(get_Layer(layer), "In Match:", this.toString())
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
@@ -821,7 +822,7 @@ export class Match {
 		// console.log(get_Layer(layer), "In Match:", this.toString())
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
-			let find = match.get_Follow(term, layer + 1);
+			let find = match.get_Follow2(term, layer + 1);
 			if (find) {
 				if (i + 1 === this.subs.length) {
 					// console.log(get_Layer(layer), ">>>>>> last")
