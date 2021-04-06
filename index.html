@@ -11,10 +11,9 @@ box-sizing: border-box;
 margin: 0px; padding: 2px 10px 10px 10px;">
 
 	<div
-		style="overflow: hidden; height: 100%;width: 20%; min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
+		style="overflow: hidden; height: 100%;width: 40%; min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
 		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Coder</h3>
-		<textarea style="height: 50%;width: 100%;resize: vertical;  font-family: consolas; " oninput="input(this.value)"
-			id="input" autofocus># sPARks PL/0 Hello World !!
+		<textarea style="height: 70%;width: 100%;resize: vertical;  font-family: consolas; " id="input"># sPARks PL/0 Hello World !!
 # 在这里键入PL/0 程序
 var n, i, j, c, sum;
 
@@ -47,26 +46,26 @@ end.
 			<h3 style="margin: 0px 12px;font-family: consolas;">JavaScript</h3>
 			<button onclick="test()" style="font-family: consolas;">Run Code</button>
 		</div>
-		<pre style="flex:1; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; font-family: consolas; overflow-y: auto; color: white; box-sizing: border-box;"
+		<pre style="flex:1;background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; font-family: consolas; overflow-y: auto; color: white; box-sizing: border-box;"
 			id="count"></pre>
 		<h3 style="margin: 0px 12px;font-family: consolas;">Output</h3>
 		<pre style="background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; font-family: consolas; overflow-y: auto; color: white; box-sizing: border-box;"
 			id="console"></pre>
 	</div>
 	<div
-		style="overflow: hidden; height: 100%;width: 300px; min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
+		style="overflow: hidden; height: 100%;width: 300px; min-width: 5%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
 		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Lexer</h3>
 		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
 			id="tokens"></pre>
 	</div>
 	<div
-		style="overflow: hidden; height: 100%;width: 500px; min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px; box-sizing: border-box;">
+		style="overflow: hidden; height: 100%;width: 500px; min-width: 5%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px; box-sizing: border-box;">
 		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Parser</h3>
 		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
 			id="parser"></pre>
 	</div>
 	<div
-		style="overflow: hidden; height: 100%;flex:1; min-width: 20%; max-width: 80%; font-family: consolas; display: flex;flex-direction: column; gap: 10px">
+		style="overflow: hidden; height: 100%;flex:1; min-width: 5%; max-width: 80%; font-family: consolas; display: flex;flex-direction: column; gap: 10px">
 		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">AST</h3>
 		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
 			id="ast"></pre>
@@ -76,9 +75,24 @@ end.
 	<pre style="flex:1; width: 100px; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow-y: auto;"
 		id="ast"></pre> -->
 </body>
-
+<script src="lib/codemirror.js"></script>
+<link rel="stylesheet" href="lib/codemirror.css">
+<style>
+	.CodeMirror {
+		font-family: consolas;
+		font-size: 16px;
+	}
+</style>
 <script type="module">
 	import * as SUN from './sunLang.js';
+	var myCodeMirror = CodeMirror.fromTextArea(document.getElementById('input'), {
+		lineNumbers: true,
+		mode: "javascript"
+	});
+
+	myCodeMirror.on('change', (cm, obj) => {
+		window.input(cm.getValue())
+	})
 	// import * as Data from './demo.sun';
 
 	window.test = function () {
@@ -107,7 +121,7 @@ end.
 
 		ans = []
 
-		let ast = SUN.SPARK_get("程序").match(lexer.tokens);
+		let ast = SUN.SPARK_get("program").match(lexer.tokens);
 		// console.log(ast);
 
 		if (ast[2] !== undefined)
