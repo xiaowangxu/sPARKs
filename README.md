@@ -1,6 +1,8 @@
 # **sPARks** / **sPARKs**
 by SUN
 
+**2021/4/6 _更新_：现支持求解FIRST/FOLLOW集**
+
 #### 一个js编写的“递归下降”语法分析器
 
 demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，在AST上naive地翻译成JS代码使得PL/0程序可以大致运行：https://xiaowangxu.github.io/sun/PL0/
@@ -68,6 +70,7 @@ let [finished, fin_index, ast, error, error_index] = SPARK_get("条件语句").m
 - 左递归检测
 - 可随意手动介入的AST生成
 - 自动错误提示
+- 自动求解文法的FIRST/FOLLOW集
 
 ---
 ### **未来进度：**
@@ -78,7 +81,7 @@ sPARks
 - [ ] 更友好的错误提示
 - [ ] 更泛化的词法分析器
 - [x] 生成First集合
-- [ ] 生成Follow集合 // 下一版本
+- [x] 生成Follow集合 // 2021/4/6 通过书上的测试和自定义测试
 - [ ] 提供LL(1)分析器
 - [ ] LR分析器 ？
 - [ ] 提供范例语言sunLang
