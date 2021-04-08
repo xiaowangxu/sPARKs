@@ -124,8 +124,12 @@ end.
 		let ast = SUN.SPARK_get("program").match(lexer.tokens);
 		// console.log(ast);
 
-		if (ast[2] !== undefined)
+		if (ast[2] !== undefined) {
+			// let walker = new SUN.Walker(ast[2][1], SUN.PL0Visitors, lexer.tokes, source);
+			// let astnew = walker.walk();
+			// document.getElementById('ast').innerText = JSON.stringify(astnew, null, 2)
 			document.getElementById('ast').innerText = JSON.stringify(ast[2][1], null, 2)
+		}
 		else
 			document.getElementById('ast').innerText = 'Error !'
 

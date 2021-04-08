@@ -802,7 +802,7 @@ export class Match {
 			idx = nextidx;
 		}
 		let ast = this.match_func(this, undefined)
-		if (ast !== undefined) {
+		if (ast !== undefined && (ast[1].$start === undefined && ast[1].$end === undefined)) {
 			ast[1].$start = $idx
 			ast[1].$end = idx - 1
 		}
@@ -1113,7 +1113,7 @@ export class MatchToken extends Match {
 		if (token !== undefined) {
 			if (token.type === this.token && (this.value === undefined || token.value === this.value)) {
 				let ast = this.match_func(this, token)
-				if (ast !== undefined) {
+				if (ast !== undefined && (ast[1].$start === undefined && ast[1].$end === undefined)) {
 					ast[1].$start = $idx
 					ast[1].$end = $idx
 				}
@@ -1467,7 +1467,10 @@ SPARK_registe('vardef', () => {
 		new Once_or_None([
 			new Match([
 				new MatchToken("TK_ASSIGN", undefined),
-				new MatchTerm('exp')
+				new ChooseOne([
+					new MatchTerm('exp'),
+					new MatchTerm('array')
+				])
 			], (match, token) => {
 				return match.nodes[0]
 			})
@@ -1512,7 +1515,27 @@ SPARK_registe('fact', () => {
 		new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] }),
 		new MatchToken("TK_FLOAT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'real', value: token.value }] }),
 		new MatchToken("TK_STRING", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'string', value: token.value }] }),
-		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
+		new Match([
+			new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
+			new Once_or_None([
+				new Match([
+					new MatchToken("TK_LSQR", undefined),
+					new MatchTerm('exp'),
+					new MatchToken("TK_RSQR", undefined)], (match, tokens) => {
+						return match.nodes[0]
+					})
+			], true)
+		], (match, token) => {
+			if (match.nodes[1][0] === 'null') {
+				return match.nodes[0]
+			}
+			// console.log(">>>>>>>", match.nodes)
+			return ['indexof', {
+				type: 'indexof',
+				identifier: match.nodes[0][1].value,
+				index: match.nodes[1][1]
+			}]
+		}),
 		new Match([
 			new MatchToken("TK_LCIR", undefined),
 			new MatchTerm("exp"),
@@ -1594,6 +1617,33 @@ SPARK_registe("exp", () => {
 			sub = node;
 		})
 		return ['binop', node]
+	})
+})
+
+SPARK_registe('array', () => {
+	return new Match([
+		new MatchToken("TK_LSQR", undefined),
+		new MatchTerm("exp"),
+		new More_or_None([
+			new Match([
+				new MatchToken("TK_COMMA", undefined),
+				new MatchTerm("exp")
+			], (match, token) => {
+				return ['expression', match.nodes[0]]
+			})
+		], (match, token) => { return ['expressions', match.nodes] }),
+		new MatchToken("TK_RSQR", undefined),
+	], (match, token) => {
+		// console.log(match.nodes)
+		let arr = [match.nodes[0][1]]
+		arr = arr.concat(match.nodes[1][1].map((i) => {
+			return i[1][1]
+		}))
+		return ['array', {
+			type: 'array',
+			expressions: arr,
+			count: arr.length
+		}]
 	})
 })
 
@@ -1874,15 +1924,119 @@ Array.prototype.tab = function () {
 }
 
 // walker
+export const PL0Visitors = {
+	subprogram: {
+		walk(node) {
+			return ["consts", "vars", "procs"]
+		},
+		transform(path) {
+			return path.node
+		}
+	},
+	const: {
+		walk(node) {
+			console.log(">>> consts visitor walk func")
+			return []
+		},
+		transform(path) {
+			return path.node
+		}
+	},
+	var: {
+		walk(node) {
+			return ["vars"]
+		},
+		transform(path) {
+			return path.node
+		}
+	},
+	vardef: {
+		walk(node) {
+			console.log(">>> vardef visitor walk func", node)
+			return ["default"]
+		},
+		transform(path) {
+			return path.node
+		}
+	},
+	proc: {
+		walk(node) {
+			console.log(">>> procs visitor walk func")
+			return []
+		},
+		transform(path) {
+			return { hello: "proc" }
+		}
+	},
+	value: {
+		walk() { },
+		transform(path) {
+			return {
+				$pure: true,
+				datatype: path.node.datatype,
+				value: path.node.value
+			}
+		}
+	},
+	binop: {
+		walk(node) {
+			console.log(">>> binop visitor walk func", node)
+			return ["sub"]
+		},
+		transform(path) {
+			if (path.node.sub[0].$pure && path.node.sub[1].$pure) {
+				return {
+					$pure: true,
+					datatype: path.node.sub[0].datatype,
+					value: path.node.sub[0].value + path.node.sub[1].value
+				}
+			}
+			return {
+				$pure: true,
+				datatype: path.node.datatype,
+				value: path.node.value
+			}
+		}
+	}
+}
+
 export class Walker {
-	constructor(ast, tokens, sourcescript) {
+	constructor(ast, visitors, tokens, sourcescript) {
 		this.ast = ast;
 		this.tokens = tokens;
 		this.sourcescript = sourcescript;
+		this.visitors = visitors;
 	}
 
-	walk(func = () => { }) {
-		console.log(this.ast)
+	create_Node(ast, parent = null) {
+		return {
+			parent: parent,
+			node: ast
+		}
+	}
+
+	walk(ast = this.ast, parent = null) {
+		if (this.visitors[ast.type] === undefined) {
+			throw new Error(`no visitor for node type of ${ast.type}`)
+		}
+		let subs = this.visitors[ast.type].walk(ast) || [];
+		if (subs !== undefined) {
+			subs.forEach((key) => {
+				let target = ast[key];
+				if (target === undefined || target === null) return;
+				if (target instanceof Array) {
+					let ans = [];
+					target.forEach((t) => {
+						ans.push(this.walk(t, ast));
+					})
+					ast[key] = ans;
+				}
+				else {
+					ast[key] = this.walk(target, ast);
+				}
+			})
+		}
+		return this.visitors[ast.type].transform(this.create_Node(ast, parent));
 	}
 }
 
@@ -1952,8 +2106,11 @@ export class JSConverter {
 			return `${ast.value !== last && last !== null ? '(' : ''}${ast.value}${this.exp(ast.sub[0], ast.value)}${ast.value !== last && last !== null ? ')' : ''}`
 		}
 		else if (ast.type === 'array') {
-			let items = ast.list.map(i => this.exp(i)).join(', ')
+			let items = ast.expressions.map(i => this.exp(i)).join(', ')
 			return `[${items}]`
+		}
+		else if (ast.type === 'indexof') {
+			return `${ast.identifier}[${this.exp(ast.index)}]`
 		}
 	}
 
@@ -1991,6 +2148,10 @@ export class JSConverter {
 			case 'string': return `"${ast.value}"`;
 			default: return `BigInt("${ast.value}")`;
 		}
+	}
+
+	indexof(ast) {
+		return `${ast.identifier}[${this.exp(ast.index)}]`
 	}
 
 	read(ast) {
@@ -2047,7 +2208,7 @@ export class JSConverter {
 				if (!ans) {
 					that.errors.push({ message: `标识符 "${c.identifier}" 重定义`, start: c.$start, end: c.$end })
 				}
-				arr.push(`let ${c.identifier}${c.typedef !== null && c.typedef.type === 'arraytype' ? '[]' : ''}${c.default !== null ? ' = ' + this.exp(c.default) : ''};`)
+				arr.push(`let ${c.identifier}${c.default !== null ? ' = ' + this.exp(c.default) : ''};`)
 			})
 		})
 		let procs = ast.procs;
