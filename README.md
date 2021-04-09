@@ -75,10 +75,11 @@ let [finished, fin_index, ast, error, error_index] = SPARK_get("条件语句").m
 ---
 ### **未来进度：**
 sPARks
+- [ ] AST的 start / end 替换为```ScriptPosition```
 - [x] More_or_None 的错误提示
 - [x] 左递归检查
 - [x] 默认AST格式 // 实验特性，可作为文法测试使用，实际中请手动实现
-- [ ] 更友好的错误提示
+- [x] 更友好的错误提示
 - [ ] 更泛化的词法分析器
 - [x] 生成First集合
 - [x] 生成Follow集合 // 2021/4/6 通过书上的测试和自定义测试
@@ -88,7 +89,7 @@ sPARks
 
 在 https://xiaowangxu.github.io/sun/PL0/ 的改进
 - [x] 扩充PL/0语法，部分完成
-- [ ] 语义分析 // 类型推导，AST上的静态优化，静态检查
+- [x] 语义分析 // 类型推导，AST上的静态优化，静态检查 // 进行中
 - [ ] 中间代码生成 SSA or 四元数
 - [ ] 中间代码优化
 - [ ] PL/0 虚拟机 基于AST 或 中间代码
