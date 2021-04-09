@@ -811,8 +811,10 @@ export class Match {
 		}
 		let ast = this.match_func(this, undefined)
 		if (ast !== undefined && (ast[1].$start === undefined && ast[1].$end === undefined)) {
-			ast[1].$start = $idx
-			ast[1].$end = idx - 1
+			ast[1].$start = tokens[$idx].start
+			ast[1].$end = tokens[idx - 1].end
+			ast[1].$startidx = $idx
+			ast[1].$endidx = idx - 1
 		}
 		return [true, idx, ast, undefined, undefined];
 	}
@@ -973,28 +975,23 @@ export class More_or_None extends Match {
 		if (erroridx === nextidx) {
 			let ast = this.match_func(this, undefined)
 			if (ast !== undefined) {
-				ast[1].$start = $idx
-				ast[1].$end = nextidx - 1
+				ast[1].$start = tokens[$idx]
+				ast[1].$end = tokens[nextidx - 1]
+				ast[1].$startidx = $idx
+				ast[1].$endidx = nextidx - 1
 			}
 			return [true, nextidx, ast, undefined, undefined];
 		}
 		else {
 			let ast = this.match_func(this, undefined)
 			if (ast !== undefined) {
-				ast[1].$start = $idx
-				ast[1].$end = nextidx - 1
+				ast[1].$start = tokens[$idx]
+				ast[1].$end = tokens[nextidx - 1]
+				ast[1].$startidx = $idx
+				ast[1].$endidx = nextidx - 1
 			}
 			return [false, nextidx, ast, error, erroridx];
 		}
-		// if (erroridx > nextidx && idx !== nextidx) {
-		// 	console.log(">>> error", idx, nextidx, erroridx, error.message)
-		// 	return [false, idx, undefined, error, erroridx]
-		// }
-		// if (this.nodes.length === 0) {
-		// 	return [true, nextidx, this.match_func(this, undefined), undefined, undefined];
-		// }
-		console.log(error)
-		return [true, nextidx, this.match_func(this, undefined), error, erroridx];
 	}
 
 	check(term_name, expanded, traveled = []) {
@@ -1122,8 +1119,10 @@ export class MatchToken extends Match {
 			if (token.type === this.token && (this.value === undefined || token.value === this.value)) {
 				let ast = this.match_func(this, token)
 				if (ast !== undefined && (ast[1].$start === undefined && ast[1].$end === undefined)) {
-					ast[1].$start = $idx
-					ast[1].$end = $idx
+					ast[1].$start = tokens[$idx].start
+					ast[1].$end = tokens[$idx].end
+					ast[1].$startidx = $idx
+					ast[1].$endidx = $idx
 				}
 				return [true, idx + 1, ast, undefined, undefined];
 			}
@@ -1464,14 +1463,12 @@ SPARK_registe('type', () => {
 SPARK_registe('vardef', () => {
 	return new Match([
 		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
-		new Once_or_None([
-			new Match([
-				new MatchToken("TK_TYPEDEFINE", undefined),
-				new MatchTerm('type')
-			], (match, token) => {
-				return match.nodes[0]
-			})
-		], true),
+		new Match([
+			new MatchToken("TK_TYPEDEFINE", undefined),
+			new MatchTerm('type')
+		], (match, token) => {
+			return match.nodes[0]
+		}),
 		new Once_or_None([
 			new Match([
 				new MatchToken("TK_ASSIGN", undefined),
@@ -1575,7 +1572,7 @@ SPARK_registe("term", () => {
 		}
 		tree.forEach((op) => {
 			let value = op[1][1][1];
-			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end };
+			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end, $startidx: sub.$startidx, $endidx: value.$endidx };
 			sub = node;
 		})
 		return ['binop', node]
@@ -1621,7 +1618,7 @@ SPARK_registe("exp", () => {
 		}
 		tree.forEach((op) => {
 			let value = op[1][1][1];
-			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end };
+			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end, $startidx: sub.$startidx, $endidx: value.$endidx };
 			sub = node;
 		})
 		return ['binop', node]
@@ -1720,7 +1717,7 @@ SPARK_registe("assign", () => {
 	], (match, token) => {
 		return ['assign', {
 			type: 'assign',
-			identifier: match.nodes[0][1].value,
+			identifier: match.nodes[0][1],
 			expression: match.nodes[1][1]
 		}]
 	})
@@ -1935,7 +1932,7 @@ Array.prototype.tab = function () {
 export const PL0Visitors = {
 	subprogram: {
 		walk(node) {
-			return ["consts", "vars", "procs"]
+			return ["consts", "vars", "procs", "subs"]
 		},
 		transform(path) {
 			return path.node
@@ -1960,31 +1957,46 @@ export const PL0Visitors = {
 	},
 	vardef: {
 		walk(node) {
-			console.log(">>> vardef visitor walk func", node)
+			// console.log(">>> vardef visitor walk func", node)
 			return ["default"]
 		},
 		transform(path) {
 			// console.log(path.node)
+			let iden = new Identifier(path.node.identifier, "var", path.node, path.node.typedef)
+			let [ans, old] = path.$scope.registe(iden)
 			if (path.node.default !== null)
-				if (path.node.typedef === null)
-					path.node.typedef = path.node.default.typedef
-				else if (path.node.default.typedef !== null && path.node.default.typedef.value !== path.node.typedef.value) {
-					let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.$tokens[path.node.typedef.$start].start, path.$tokens[path.node.typedef.$end].end, "~", "yellow")
+				if (path.node.default.typedef.value !== path.node.typedef.value) {
+					let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.typedef.$start, path.node.typedef.$end, "~", "yellow")
 					// console.log(str)
-					let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.$tokens[path.node.default.$start].start, path.$tokens[path.node.default.$end].end, "~", "yellow")
+					let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.node.default.$start, path.node.default.$end, "~", "yellow")
 					// console.log(str)
 					let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a><a style="color: yellow">${path.node.typedef.value}</a>` + '\n\n' + str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">${path.node.default.typedef.value}</a>`
-					throw new BaseError("TypeCheckError", `\n${reason}\n\nwhen defining var ${path.node.identifier}\n${path.node.identifier} is type of ${path.node.typedef.value} but its default value is type of ${path.node.default.typedef.value} which is not acceptable`, path.$startpos, path.$endpos)
+					return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nvariable <a style="color: rgb(0,255,0);">${path.node.identifier}</a> is type of ${path.node.typedef.value}\nbut its default value is type of ${path.node.default.typedef.value} which is not compatible`, path.$start, path.$end)]
 				}
 
-			let iden = new Identifier(path.node.identifier, path.node.typedef, path.node, path.node.typedef)
-			let [ans, old] = path.$scope.registe(iden)
+
 			if (!ans) {
-				console.log(old)
-				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.$tokens[old.def.$start].start, path.$tokens[old.def.$end].end, "~", "yellow")
-				console.log(">>>>>", str)
+				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(old.def.$start, old.def.$end, "~", "yellow")
 				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">last definition of ${old.def.identifier}</a>`
-				throw new BaseError("VariableRedefinitionError", `\n${reason}\n\nwhen defining var ${path.node.identifier}\nwhich has been already defined before`, path.$startpos, path.$endpos)
+				return [path.node, new BaseError("VariableRedefinitionError", `\n${reason}\n\nwhen defining var ${path.node.identifier}\nwhich has been already defined before`, path.$start, path.$end)]
+			}
+			return path.node
+		}
+	},
+	assign: {
+		walk(node) {
+			// console.log(">>> vardef visitor walk func", node)
+			return ["identifier", "expression"]
+		},
+		transform(path) {
+			if (path.node.identifier.typedef.value === '$unknown') return path.node
+			if (path.node.identifier.typedef !== null && path.node.expression.typedef.value !== path.node.identifier.typedef.value) {
+				let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.identifier.typedef.$start, path.node.identifier.typedef.$end, "~", "yellow")
+				// console.log(str)
+				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.node.expression.$start, path.node.expression.$end, "~", "yellow")
+				// console.log(str)
+				let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a><a style="color: yellow">${path.node.identifier.typedef.value}</a>` + '\n\n' + str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">${path.node.expression.typedef.value}</a>`
+				return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nvariable <a style="color: rgb(0,255,0);">${path.node.identifier.value}</a> is type of ${path.node.identifier.typedef.value} \ntype of ${path.node.expression.typedef.value} is not compatible`, path.$start, path.$end)]
 			}
 			return path.node
 		}
@@ -2013,8 +2025,15 @@ export const PL0Visitors = {
 		walk(node) {
 		},
 		transform(path) {
+			let iden = path.$scope.get(path.node.value);
+			if (iden === undefined) {
+				path.node.typedef = { type: 'type', value: '$unknown' };
+				return [path.node, new BaseError("IdentifierUndefinedError", `variable <a style="color: rgb(0,255,0);">${path.node.value}</a> is not defined in this scope`, path.$start, path.$end)]
+			}
+			else {
+				path.node.typedef = iden.typedef;
+			}
 			path.node.$immediate = false;
-			path.node.typedef = null;
 			return path.node;
 		}
 	},
@@ -2057,15 +2076,15 @@ export const PL0Visitors = {
 					}
 				}
 			}
+			let type = null;
+			if (path.node.sub[0].typedef !== null && path.node.sub[1].typedef !== null) {
+				type = { type: "type", value: TYPEMAP[path.node.sub[0].typedef.value](path.node.sub[1].typedef.value) };
+			}
 			if (path.node.sub[0].$immediate && path.node.sub[1].$immediate) {
-				let type = null;
-				if (path.node.sub[0].typedef !== null && path.node.sub[1].typedef !== null) {
-					type = TYPEMAP[path.node.sub[0].typedef.value](path.node.sub[1].typedef.value);
-				}
 				return {
 					type: 'value',
 					$immediate: true,
-					typedef: type === null ? null : { type: 'type', value: type },
+					typedef: type,
 					value: BINOP[path.node.value](path.node.sub[0].value, path.node.sub[1].value)
 				}
 			}
@@ -2073,7 +2092,7 @@ export const PL0Visitors = {
 				type: 'binop',
 				value: path.node.value,
 				$immediate: false,
-				typedef: null,
+				typedef: type,
 				sub: path.node.sub
 			}
 		}
@@ -2106,6 +2125,7 @@ class Scope {
 		}
 		else {
 			this.current[identifier.name] = identifier;
+			console.log(this)
 			return [true, undefined];
 		}
 	}
@@ -2130,8 +2150,8 @@ export class Walker {
 			$tokens: this.tokens,
 			$start: ast.$start,
 			$end: ast.$end,
-			$startpos: this.tokens[ast.$start].start,
-			$endpos: this.tokens[ast.$end].end
+			$startidx: ast.$startidx,
+			$endidx: ast.$endidx
 		}
 	}
 
@@ -2159,18 +2179,26 @@ export class Walker {
 				}
 			})
 		}
-		try {
-			// console.log("++++++", ast)
-			let ans = this.visitors[ast.type].transform(this.create_Node(ast, parent));
+
+		let ans = this.visitors[ast.type].transform(this.create_Node(ast, parent));
+		let newast;
+		if (ans instanceof Array) {
+			newast = ans[0];
+			ans[0].$start = ast.$start;
+			ans[0].$end = ast.$end;
+			ans[0].$startidx = ast.$startidx;
+			ans[0].$endidx = ast.$endidx;
+			error.push(ans[1])
+		}
+		else {
+			newast = ans;
 			ans.$start = ast.$start;
 			ans.$end = ast.$end;
-			return [ans, error];
+			ans.$startidx = ast.$startidx;
+			ans.$endidx = ast.$endidx;
 		}
-		catch (err) {
-			// console.log(err)
-			error.push(err)
-			return [{ type: 'error', error: err, $start: ast.$start, $end: ast.$end }, error];
-		}
+		// console.log(ans, ast, "!!!!!")
+		return [newast, error];
 	}
 }
 
