@@ -109,7 +109,7 @@ end.
 
 		let ans = []
 		lexer.errors.forEach(e => {
-			let [s, starter] = source.get_ScriptPortion(e.start, e.end, '^', "red")
+			let [s, starter, _] = source.get_ScriptPortion(e.start, e.end, '^', "red")
 			ans.push(s + `${starter}<a style="color: red;">${e.type} ${e.message}</a>\n`);
 			// ans.push(e.type + ' : ' + e.message + "\n" + source.get_ScriptPortion(e.start, e.end, '^', 'red')[0]);
 		})
@@ -122,29 +122,40 @@ end.
 		ans = []
 
 		let ast = SUN.SPARK_get("program").match(lexer.tokens);
-		// console.log(ast);
-
-		if (ast[2] !== undefined) {
-			// let walker = new SUN.Walker(ast[2][1], SUN.PL0Visitors, lexer.tokes, source);
-			// let astnew = walker.walk();
-			// document.getElementById('ast').innerText = JSON.stringify(astnew, null, 2)
-			document.getElementById('ast').innerText = JSON.stringify(ast[2][1], null, 2)
-		}
-		else
-			document.getElementById('ast').innerText = 'Error !'
+		console.log(ast);
 
 		if (ast[3] !== undefined) {
 			let err = ast[3];
 			while (err !== undefined) {
-				let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
-				ans.push(s + `${starter}<a style="color: red;">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `<a style="color: red;">  ${i}</a>`).join('\n')}</a>\n`);
+				let [s, starter, _] = source.get_ScriptPortion(err.start, err.end, '^', "red")
+				ans.push(s + `${starter}<a style="color: red;">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `${i}`).join('\n')}</a>\n`);
 				err = err.last
 			}
-			document.getElementById('parser').innerHTML = ans.join('')
+			document.getElementById('parser').innerHTML = ans.join('\n')
 			document.getElementById('count').innerText = "no code translated"
+			document.getElementById('ast').innerText = 'Error !'
 		}
 		else {
 			document.getElementById('parser').innerHTML = '<a style="color: rgb(0,255,0);">OK</a>'
+			if (ast[2] !== undefined) {
+				let walker = new SUN.Walker(ast[2][1], SUN.PL0Visitors, lexer.tokens, source);
+				let [astnew, err] = walker.walk();
+				// console.log(err)
+				let ans = []
+				err.forEach((err) => {
+					let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
+					ans.push(s + `${starter}<a style="color: red;">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `${i}`).join('\n')}</a>\n`);
+				})
+
+				// console.log(ans)
+				if (ans.length > 0) {
+					document.getElementById('parser').innerHTML = ans.join('\n')
+				}
+				// document.getElementById('ast').innerText = JSON.stringify(astnew, null, 2)
+				document.getElementById('ast').innerText = JSON.stringify(ast[2][1], null, 2)
+			}
+			else
+				document.getElementById('ast').innerText = 'Error !'
 			let jsc = new SUN.JSConverter(ast[2][1])
 			jsc.convert()
 			ans = []

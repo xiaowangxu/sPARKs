@@ -79,16 +79,20 @@ export class SourceScript {
 		let linefront = `${match('', linecountlen)} | `;
 
 		let start_pos = start.col;
+		let tokestart = "";
 		for (let i = 0; i < lines.length; i++) {
 			let line = lines[i];
 			str += `${match((start.line + i + 1).toString(), linecountlen)} | ${line}`;
 			str += `\n${linefront}`;
 			for (let j = 0; j < start_pos; j++) {
 				if (line[j] === '\t') {
-					str += "\t"
+					str += "\t";
+					tokestart += "\t";
 				}
-				else
+				else {
 					str += " ";
+					tokestart += " ";
+				}
 			}
 			if (i < lines.length - 1) {
 				for (let j = start_pos; j < line.length; j++) {
@@ -98,14 +102,18 @@ export class SourceScript {
 					else
 						str += linemark;
 				}
+				tokestart = "";
 			}
 			else {
 				for (let j = start_pos; j < end.col + 1; j++) {
 					if (line[j] === '\t') {
-						str += "\t"
+						str += "\t";
+						tokestart += "\t";
 					}
-					else
+					else {
 						str += linemark;
+						tokestart += " ";
+					}
 				}
 			}
 			start_pos = 0;
@@ -115,7 +123,7 @@ export class SourceScript {
 				str += '\n';
 		}
 
-		return [str, linefront];
+		return [str, linefront, tokestart];
 	}
 }
 
@@ -1567,7 +1575,7 @@ SPARK_registe("term", () => {
 		}
 		tree.forEach((op) => {
 			let value = op[1][1][1];
-			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value] };
+			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end };
 			sub = node;
 		})
 		return ['binop', node]
@@ -1613,7 +1621,7 @@ SPARK_registe("exp", () => {
 		}
 		tree.forEach((op) => {
 			let value = op[1][1][1];
-			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value] };
+			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end };
 			sub = node;
 		})
 		return ['binop', node]
@@ -1935,7 +1943,7 @@ export const PL0Visitors = {
 	},
 	const: {
 		walk(node) {
-			console.log(">>> consts visitor walk func")
+			// console.log(">>> consts visitor walk func")
 			return []
 		},
 		transform(path) {
@@ -1956,46 +1964,149 @@ export const PL0Visitors = {
 			return ["default"]
 		},
 		transform(path) {
+			// console.log(path.node)
+			if (path.node.default !== null)
+				if (path.node.typedef === null)
+					path.node.typedef = path.node.default.typedef
+				else if (path.node.default.typedef !== null && path.node.default.typedef.value !== path.node.typedef.value) {
+					let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.$tokens[path.node.typedef.$start].start, path.$tokens[path.node.typedef.$end].end, "~", "yellow")
+					// console.log(str)
+					let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.$tokens[path.node.default.$start].start, path.$tokens[path.node.default.$end].end, "~", "yellow")
+					// console.log(str)
+					let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a><a style="color: yellow">${path.node.typedef.value}</a>` + '\n\n' + str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">${path.node.default.typedef.value}</a>`
+					throw new BaseError("TypeCheckError", `\n${reason}\n\nwhen defining var ${path.node.identifier}\n${path.node.identifier} is type of ${path.node.typedef.value} but its default value is type of ${path.node.default.typedef.value} which is not acceptable`, path.$startpos, path.$endpos)
+				}
+
+			let iden = new Identifier(path.node.identifier, path.node.typedef, path.node, path.node.typedef)
+			let [ans, old] = path.$scope.registe(iden)
+			if (!ans) {
+				console.log(old)
+				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.$tokens[old.def.$start].start, path.$tokens[old.def.$end].end, "~", "yellow")
+				console.log(">>>>>", str)
+				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">last definition of ${old.def.identifier}</a>`
+				throw new BaseError("VariableRedefinitionError", `\n${reason}\n\nwhen defining var ${path.node.identifier}\nwhich has been already defined before`, path.$startpos, path.$endpos)
+			}
 			return path.node
 		}
 	},
 	proc: {
 		walk(node) {
-			console.log(">>> procs visitor walk func")
+
 			return []
 		},
 		transform(path) {
-			return { hello: "proc" }
+			return path.node
 		}
 	},
 	value: {
 		walk() { },
 		transform(path) {
 			return {
-				$pure: true,
-				datatype: path.node.datatype,
+				type: 'value',
+				$immediate: true,
+				typedef: { type: "type", value: path.node.datatype },
 				value: path.node.value
 			}
 		}
 	},
+	identifier: {
+		walk(node) {
+		},
+		transform(path) {
+			path.node.$immediate = false;
+			path.node.typedef = null;
+			return path.node;
+		}
+	},
 	binop: {
 		walk(node) {
-			console.log(">>> binop visitor walk func", node)
+			// console.log(">>> binop visitor walk func", node)
 			return ["sub"]
 		},
 		transform(path) {
-			if (path.node.sub[0].$pure && path.node.sub[1].$pure) {
+			// console.log(path.node)
+			const BINOP = {
+				'+': (a, b) => { return a + b },
+				'-': (a, b) => { return a - b },
+				'*': (a, b) => { return a * b },
+				'/': (a, b) => { return a / b },
+			}
+			const TYPEMAP = {
+				"int": (right) => {
+					switch (right) {
+						case "int": return "int";
+						case "real": return "real";
+						case "string": return "string";
+						default: return null;
+					}
+				},
+				"real": (right) => {
+					switch (right) {
+						case "int": return "real";
+						case "real": return "real";
+						case "string": return "string";
+						default: return null;
+					}
+				},
+				"string": (right) => {
+					switch (right) {
+						case "int": return "string";
+						case "real": return "string";
+						case "string": return "string";
+						default: return null;
+					}
+				}
+			}
+			if (path.node.sub[0].$immediate && path.node.sub[1].$immediate) {
+				let type = null;
+				if (path.node.sub[0].typedef !== null && path.node.sub[1].typedef !== null) {
+					type = TYPEMAP[path.node.sub[0].typedef.value](path.node.sub[1].typedef.value);
+				}
 				return {
-					$pure: true,
-					datatype: path.node.sub[0].datatype,
-					value: path.node.sub[0].value + path.node.sub[1].value
+					type: 'value',
+					$immediate: true,
+					typedef: type === null ? null : { type: 'type', value: type },
+					value: BINOP[path.node.value](path.node.sub[0].value, path.node.sub[1].value)
 				}
 			}
 			return {
-				$pure: true,
-				datatype: path.node.datatype,
-				value: path.node.value
+				type: 'binop',
+				value: path.node.value,
+				$immediate: false,
+				typedef: null,
+				sub: path.node.sub
 			}
+		}
+	}
+}
+
+class Identifier {
+	constructor(name, type, def, typedef) {
+		this.name = name,
+			this.type = type,
+			this.def = def,
+			this.typedef = typedef
+	}
+}
+
+class Scope {
+	constructor() {
+		this.stack = [],
+			this.current = {}
+	}
+
+	get(name) {
+		if (this.current[name] !== undefined) return this.current[name];
+		else return undefined;
+	}
+
+	registe(identifier) {
+		if (this.current[identifier.name] !== undefined) {
+			return [false, this.current[identifier.name]];
+		}
+		else {
+			this.current[identifier.name] = identifier;
+			return [true, undefined];
 		}
 	}
 }
@@ -2006,18 +2117,28 @@ export class Walker {
 		this.tokens = tokens;
 		this.sourcescript = sourcescript;
 		this.visitors = visitors;
+		this.scope = new Scope();
 	}
 
 	create_Node(ast, parent = null) {
+		console.log(ast)
 		return {
 			parent: parent,
-			node: ast
+			node: ast,
+			$scope: this.scope,
+			$sourcescript: this.sourcescript,
+			$tokens: this.tokens,
+			$start: ast.$start,
+			$end: ast.$end,
+			$startpos: this.tokens[ast.$start].start,
+			$endpos: this.tokens[ast.$end].end
 		}
 	}
 
-	walk(ast = this.ast, parent = null) {
+	walk(ast = this.ast, parent = null, error = []) {
+		// console.log(">>>>>", ast.type, this.visitors[ast.type])
 		if (this.visitors[ast.type] === undefined) {
-			throw new Error(`no visitor for node type of ${ast.type}`)
+			return [ast, error]
 		}
 		let subs = this.visitors[ast.type].walk(ast) || [];
 		if (subs !== undefined) {
@@ -2027,16 +2148,29 @@ export class Walker {
 				if (target instanceof Array) {
 					let ans = [];
 					target.forEach((t) => {
-						ans.push(this.walk(t, ast));
+						let [newast, _] = this.walk(t, ast, error);
+						ans.push(newast);
 					})
 					ast[key] = ans;
 				}
 				else {
-					ast[key] = this.walk(target, ast);
+					let [newast, _] = this.walk(target, ast, error);
+					ast[key] = newast;
 				}
 			})
 		}
-		return this.visitors[ast.type].transform(this.create_Node(ast, parent));
+		try {
+			// console.log("++++++", ast)
+			let ans = this.visitors[ast.type].transform(this.create_Node(ast, parent));
+			ans.$start = ast.$start;
+			ans.$end = ast.$end;
+			return [ans, error];
+		}
+		catch (err) {
+			// console.log(err)
+			error.push(err)
+			return [{ type: 'error', error: err, $start: ast.$start, $end: ast.$end }, error];
+		}
 	}
 }
 
@@ -2078,9 +2212,11 @@ export class JSConverter {
 	exp(ast, last = null) {
 		// console.log(ast)
 		if (ast.type === 'value') {
-			switch (ast.datatype) {
+			switch (ast.typedef.value) {
 				case 'string': return `"${ast.value}"`;
-				default: return `BigInt("${ast.value}")`;
+				case 'real': return `${ast.value}`;
+				case 'int': return `BigInt("${ast.value}")`;
+				default: return `${ast.value}`;
 			}
 		}
 		else if (ast.type === 'funccall') {
