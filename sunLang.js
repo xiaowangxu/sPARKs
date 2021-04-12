@@ -756,6 +756,39 @@ export class SPARK_Error {
 	}
 }
 
+export class Language {
+	constructor(name, bnf, starter) {
+		this.name = name;
+		this.starter = starter;
+		this.$Terms = {};
+		this.$First = {};
+		this.$Follow = {};
+		this.$Empty = {};
+	}
+
+	registe(term_name, match) {
+		if (this.$Terms[term_name] !== undefined) {
+			throw Error(`<sPARks> node error: term name "${term_name}" has been already defined`);
+		}
+		else {
+			this.$Terms[term_name] = match;
+			this.$Follow[term_name] = [];
+			this.$First[term_name] = [];
+			this.$Empty[term_name] = false;
+		}
+	}
+
+	match(tokens) {
+		let term_name = this.starter;
+		if (this.$Terms[term_name] === undefined) {
+			throw Error(`<sPARks> error: term name "${term}" is not defined in language ${this.name}`);
+		}
+		else {
+			return (this.$Terms[term]()).match(tokens, 0, this);
+		}
+	}
+}
+
 export class Match {
 	constructor(subs = [], match_func) {
 		this.subs = subs;
@@ -794,13 +827,13 @@ export class Match {
 		return this.term_name || `(${this.subs.map(i => i.toString()).join(' ')})`
 	}
 
-	match(tokens, idx = 0) {
+	match(tokens, idx = 0, language) {
 		let $idx = idx
 		this.nodes = [];
 		let oldidx = idx;
 		let ans, nextidx, node, error, erroridx = undefined;
 		for (let i = 0; i < this.subs.length; i++) {
-			[ans, nextidx, node, error, erroridx] = this.subs[i].match(tokens, idx);
+			[ans, nextidx, node, error, erroridx] = this.subs[i].match(tokens, idx, language);
 			if (!ans) {
 				// console.log(`expected ${this.subs[i].toString()} but found ${tokens[nextidx].value}`)
 				return [false, oldidx, undefined, new SPARK_Error('MissingExpectedError', `expected ${this.subs[i].toString()}\nbut found ${tokens[nextidx].value}`, tokens[nextidx], error), erroridx];
@@ -810,6 +843,12 @@ export class Match {
 			idx = nextidx;
 		}
 		let ast = this.match_func(this, undefined)
+		if (ast !== undefined && (ast[1].$start === undefined && ast[1].$end === undefined) && $idx === idx) {
+			ast[1].$start = tokens[$idx].start
+			ast[1].$end = tokens[$idx].start
+			ast[1].$startidx = $idx
+			ast[1].$endidx = $idx
+		}
 		if (ast !== undefined && (ast[1].$start === undefined && ast[1].$end === undefined)) {
 			ast[1].$start = tokens[$idx].start
 			ast[1].$end = tokens[idx - 1].end
@@ -903,8 +942,8 @@ export class Once_or_None extends Match {
 		return `[${this.subs.toString()}]`
 	}
 
-	match(tokens, idx = 0) {
-		let [ans, nextidx, node, error, erroridx] = this.subs.match(tokens, idx);
+	match(tokens, idx = 0, language) {
+		let [ans, nextidx, node, error, erroridx] = this.subs.match(tokens, idx, language);
 		// if (erroridx > idx) console.log(">>>> error", idx, erroridx, error.message)
 		if (ans) {
 			return [true, nextidx, node, error, erroridx];
@@ -958,12 +997,12 @@ export class More_or_None extends Match {
 		return `{${this.subs.toString()}}`
 	}
 
-	match(tokens, idx = 0) {
+	match(tokens, idx = 0, language) {
 		let $idx = idx
 		this.nodes = [];
 		let ans, nextidx = idx, node, error, erroridx = undefined;
 		do {
-			[ans, nextidx, node, error, erroridx] = this.subs.match(tokens, nextidx);
+			[ans, nextidx, node, error, erroridx] = this.subs.match(tokens, nextidx, language);
 			// if (!ans) console.log(">>>>>>>> error", nextidx, erroridx, error.message)
 			if (node !== undefined) {
 				this.nodes.push(node);
@@ -1027,15 +1066,14 @@ export class ChooseOne extends Match {
 		return this.term_name || `(${this.subs.map(i => i.toString()).join(' | ')})`
 	}
 
-	match(tokens, idx = 0) {
+	match(tokens, idx = 0, language) {
 		let matched = false
 		let last_idx = idx
 		let last_error_idx = idx
 		let last_node = undefined
 		let last_error = undefined
-		let ans, nextidx, node
 		for (let i = 0; i < this.subs.length; i++) {
-			let [ans, nextidx, node, error, erroridx] = this.subs[i].match(tokens, idx);
+			let [ans, nextidx, node, error, erroridx] = this.subs[i].match(tokens, idx, language);
 			if (ans) {
 				matched = true;
 				if (last_idx < nextidx) {
@@ -1112,7 +1150,7 @@ export class MatchToken extends Match {
 		return token;
 	}
 
-	match(tokens, idx = 0) {
+	match(tokens, idx = 0, language) {
 		let $idx = idx;
 		let token = tokens[idx];
 		if (token !== undefined) {
@@ -1163,9 +1201,13 @@ export class MatchTerm extends Match {
 		return "< " + this.term_name + " >";
 	}
 
-	match(tokens, idx = 0) {
-		let term = SPARK_get(this.term_name);
-		let [ans, nextidx, node, error, erroridx] = term.match(tokens, idx);
+	match(tokens, idx = 0, language) {
+		let term;
+		if (language === undefined)
+			term = SPARK_get(this.term_name);
+		else
+			term = language.get(this.term_name);
+		let [ans, nextidx, node, error, erroridx] = term.match(tokens, idx, language);
 		if (!ans) {
 			if (this.returnundefinded) {
 				return [true, idx, [this.term_name, null], undefined];
@@ -1226,7 +1268,7 @@ export class Skip extends Match {
 		return "epsilon";
 	}
 
-	match(tokens, idx = 0) {
+	match(tokens, idx = 0, language) {
 		return [true, idx, undefined, undefined, undefined]
 	}
 
@@ -2056,7 +2098,7 @@ export const PL0Visitors = {
 						case "int": return "int";
 						case "real": return "real";
 						case "string": return "string";
-						default: return null;
+						default: return "$unknown";
 					}
 				},
 				"real": (right) => {
@@ -2064,7 +2106,7 @@ export const PL0Visitors = {
 						case "int": return "real";
 						case "real": return "real";
 						case "string": return "string";
-						default: return null;
+						default: return "$unknown";
 					}
 				},
 				"string": (right) => {
@@ -2072,11 +2114,14 @@ export const PL0Visitors = {
 						case "int": return "string";
 						case "real": return "string";
 						case "string": return "string";
-						default: return null;
+						default: return "$unknown";
 					}
+				},
+				"$unknown": (right) => {
+					return "$unknown";
 				}
 			}
-			let type = null;
+			let type = { type: 'type', value: '$unknown' };
 			if (path.node.sub[0].typedef !== null && path.node.sub[1].typedef !== null) {
 				type = { type: "type", value: TYPEMAP[path.node.sub[0].typedef.value](path.node.sub[1].typedef.value) };
 			}
