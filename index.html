@@ -95,6 +95,9 @@ end.
 	})
 	// import * as Data from './demo.sun';
 
+	let PL0 = SUN.PL0();
+	PL0.print();
+
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
 		document.getElementById("console").innerHTML = str.split("\n").filter((s) => s !== '').map((s) => `<a style="color: rgb(0,255,0);">${">> "}</a>${s}`).join("\n")
@@ -121,7 +124,7 @@ end.
 
 		ans = []
 
-		let ast = SUN.SPARK_get("program").match(lexer.tokens);
+		let ast = PL0.match(lexer.tokens);
 		console.log(ast);
 
 		if (ast[3] !== undefined) {

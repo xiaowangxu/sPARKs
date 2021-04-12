@@ -1,15 +1,14 @@
 # **sPARks** / **sPARKs**
-by SUN
-
-**2021/4/6 _更新_：现支持求解FIRST/FOLLOW集**
-**2021/4/9 _更新_：基于Walker/Collect/Transform的静态分析和AST变换**
-**2021/4/12 _更新_：**
-- [x] AST的 start / end 替换为```ScriptPosition```
-- [ ] 新增```Language```语言类 // 进行中
+by _SUN_
 
 #### 一个js编写的“递归下降”语法分析器
 
 demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，在AST上naive地翻译成JS代码使得PL/0程序可以大致运行：https://xiaowangxu.github.io/sun/PL0/
+
+---
+**2021/4/6 _更新_：现支持求解FIRST/FOLLOW集**
+**2021/4/9 _更新_：基于Walker/Collect/Transform的静态分析和AST变换**
+**2021/4/12 _更新_：新增```Language```语言类, 接口大改**
 
 -----
 ### 包含
@@ -22,16 +21,15 @@ demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，�
 ----
 ### 基本使用
 ```js
-// 使用SPARK_registe注册非终结符
 // 条件语句 ::= if <条件表达式> then <语句> [ (else <语句>) ]
-SPARK_registe('条件语句', () => {
-	return new SPARK_Match([
+let ebnf = {'条件语句': () => {
+	return new Match([
 		new MatchToken("TK_KEYWORD", "if"), // 匹配终结符
 		new MatchTerm('条件表达式', undefined),// 匹配非终结符
 		new MatchToken("TK_KEYWORD", "then"),
 		new MatchTerm('语句', undefined),
 		new Once_or_None([
-			new SPARK_Match([
+			new Match([
 				new MatchToken("TK_KEYWORD", "else"),
 				new MatchTerm('语句', undefined)
 			], (match, token) => {
@@ -46,41 +44,45 @@ SPARK_registe('条件语句', () => {
 			else: [match.nodes[2][1]]
 		}]
 	})
-})
+};
 
-SPARK_get("条件语句")	// 获取一个非终结符的解析器
-SPARK_check()		// 检查文法是否含有左递归
-SPARK_print()		// 输出BNF文法
+let TestLang = new Language("TestLang", ebnf, "if");
+// 自动检查文法是否含有左递归
+// 并生成First/Follow集
+
+TestLang.print();   // 输出EBNF文法
 
 let source = new SourceScript(`
-	# sPARks PL/0 Hello World !!
-	# 在这里键入PL/0 程序
-	if a < b then
-		max := a
-	else
-		max := b
-	`, 
-	"Test sript");
+# sPARks PL/0 Hello World !!
+# 在这里键入PL/0 程序
+if a < b then
+	max := a
+else
+	max := b
+`, 
+"Test sript");
+
 let lexer = new Lexer(source);
 lexer.tokenize();
-let [finished, fin_index, ast, error, error_index] = SPARK_get("条件语句").match(lexer.tokens);
+
+let [finished, fin_index, ast, error, error_index] = TestLang.match(lexer.tokens);
 // ast即为解析成的语法树
 ```
 
 ---
 ### 一些特性
-- 基于BNF文法表达
+- 基于EBNF文法表达
 - 文法输出
 - 左递归检测
 - 可随意手动介入的AST生成
 - 自动错误提示
-- 自动求解文法的FIRST/FOLLOW集
+- 自动求解文法的First/Follow集
 
 ---
 ### **未来进度：**
 sPARks
 - [x] AST的 start / end 替换为```ScriptPosition```
-- [ ] 新增```Language```语言类 // 进行中
+- [x] 新增```Language```语言类
 - [x] More_or_None 的错误提示
 - [x] 左递归检查
 - [x] 默认AST格式 // 实验特性，可作为文法测试使用，实际中请手动实现

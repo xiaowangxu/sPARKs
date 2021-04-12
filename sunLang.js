@@ -584,132 +584,6 @@ export class Lexer {
 }
 
 // sPARks
-let $Terms = {};
-let $First = {};
-let $Follow = {};
-let $Empty = {};
-
-export function SPARK_get(term) {
-	if ($Terms[term] === undefined) {
-		throw Error(`<sPARks> node error: term name "${term}" is not defined`);
-	}
-	else {
-		return $Terms[term]();
-	}
-}
-
-function get_Follow(term) {
-	// if ($Terms[term] === undefined) {
-	// 	throw Error(`<sPARks> node error: term name "${term}" is not defined`);
-	// }
-	let ans = [];
-	for (let key in $Terms) {
-		if (key !== term) {
-			SPARK_get(key).get_Follow(term, ans);
-		}
-	}
-	$Follow[term].union(ans);
-	return ans;
-}
-
-function get_Follow2(term) {
-	let lastlen = $Follow[term].length;
-	let newlen = lastlen;
-	for (let key in $Terms) {
-		let can_reach = SPARK_get(key).get_Follow2(term);
-		// console.log(key, "->", term, can_reach)
-		if (can_reach) {
-			$Follow[term].union($Follow[key]);
-			newlen = $Follow[term].length;
-		}
-	}
-	return newlen !== lastlen;
-}
-
-export function SPARK_get_First() {
-	let ans = {};
-	for (let key in $Terms) {
-		let a = [];
-		let can_empty = SPARK_get(key).get_First(a);
-		// console.log(`First(${key})` + " >>", !can_empty, "\t", `${a.map(i => `${i.type}:${i.value}`).join(' ')}`);
-		if (!can_empty) a.add(new Token('$e', '$e'));
-		$Empty[key] = !can_empty;
-		ans[key] = a;
-	}
-	$First = ans;
-	return ans;
-}
-
-export function SPARK_get_Follow(term) {
-	SPARK_get_First();
-	$Follow[term].add(new Token("$$", "$$"));
-	for (let key in $Terms) {
-		get_Follow(key);
-	}
-	let change = true;
-	while (change) {
-		change = false;
-		for (let key in $Terms) {
-			let ans = get_Follow2(key);
-			if (ans) change = true;
-		}
-	}
-	return $Follow;
-}
-
-export function SPARK_clear() {
-	$Terms = {}
-}
-
-export function SPARK_registe(term_name, match) {
-	if ($Terms[term_name] !== undefined) {
-		throw Error(`<sPARks> node error: term name "${term_name}" has been already defined`);
-	}
-	else {
-		$Terms[term_name] = match;
-		$Follow[term_name] = [];
-		$First[term_name] = [];
-		$Empty[term_name] = false;
-	}
-}
-
-export function SPARK_check() {
-	for (let key in $Terms) {
-		try {
-			let term = $Terms[key]();
-			term.check(key, `   *${key}*`);
-		}
-		catch (err) {
-			console.error(err.message)
-		}
-	}
-}
-
-export function SPARK_print() {
-	function get_Front(c) {
-		let str = "";
-		for (let i = 0; i < c; i++) {
-			str += ' ';
-		}
-		return str;
-	}
-	let size = 0;
-	for (let key in $Terms) {
-		size = Math.max(size, key.length);
-	}
-	for (let key in $Terms) {
-		let term = $Terms[key]();
-		if (term instanceof ChooseOne) {
-			console.log(get_Front(size - key.length) + key + ' ::= ' + term.subs[0].toString());
-			term.subs.slice(1, term.length).forEach(s => {
-				console.log(get_Front(size) + '   | ' + s.toString());
-			})
-		}
-		else
-			console.log(get_Front(size - key.length) + key + ' ::= ' + term.toString());
-	}
-}
-
 const TOKEN_CMP = (a, b) => {
 	return a.equal(b)
 }
@@ -764,6 +638,57 @@ export class Language {
 		this.$First = {};
 		this.$Follow = {};
 		this.$Empty = {};
+		for (let key in bnf) {
+			this.registe(key, bnf[key]);
+		}
+		this.check();
+		this.get_FollowSet(this.starter);
+	}
+	print() {
+		console.log(`Language ${this.name}`);
+		function get_Front(c) {
+			let str = "";
+			for (let i = 0; i < c; i++) {
+				str += ' ';
+			}
+			return str;
+		}
+		let size = 0;
+		for (let key in this.$Terms) {
+			size = Math.max(size, key.length);
+		}
+		for (let key in this.$Terms) {
+			let term = this.$Terms[key]();
+			if (term instanceof ChooseOne) {
+				console.log(get_Front(size - key.length) + key + ' ::= ' + term.subs[0].toString());
+				term.subs.slice(1, term.length).forEach(s => {
+					console.log(get_Front(size) + '   | ' + s.toString());
+				})
+			}
+			else
+				console.log(get_Front(size - key.length) + key + ' ::= ' + term.toString());
+		}
+	}
+
+	check() {
+		for (let key in this.$Terms) {
+			try {
+				let term = this.$Terms[key]();
+				term.check(key, `   *${key}*`, undefined, this);
+			}
+			catch (err) {
+				console.error(err.message)
+			}
+		}
+	}
+
+	get(term_name) {
+		if (this.$Terms[term_name] === undefined) {
+			throw Error(`<sPARks> node error: term name "${term}" is not defined`);
+		}
+		else {
+			return this.$Terms[term_name]();
+		}
 	}
 
 	registe(term_name, match) {
@@ -784,7 +709,61 @@ export class Language {
 			throw Error(`<sPARks> error: term name "${term}" is not defined in language ${this.name}`);
 		}
 		else {
-			return (this.$Terms[term]()).match(tokens, 0, this);
+			return (this.$Terms[term_name]()).match(tokens, 0, this);
+		}
+	}
+
+	get_FirstSet() {
+		let ans = {};
+		for (let key in this.$Terms) {
+			let a = [];
+			let can_empty = this.get(key).get_First(a, this);
+			// console.log(`First(${key})` + " >>", !can_empty, "\t", `${a.map(i => `${i.type}:${i.value}`).join(' ')}`);
+			if (!can_empty) a.add(new Token('$e', '$e'));
+			this.$Empty[key] = !can_empty;
+			ans[key] = a;
+		}
+		this.$First = ans;
+	}
+
+	$get_Follow1(term) {
+		let ans = [];
+		for (let key in this.$Terms) {
+			if (key !== term) {
+				this.get(key).get_Follow(term, ans, undefined, this);
+			}
+		}
+		this.$Follow[term].union(ans);
+		return ans;
+	}
+
+	$get_Follow2(term) {
+		let lastlen = this.$Follow[term].length;
+		let newlen = lastlen;
+		for (let key in this.$Terms) {
+			let can_reach = this.get(key).get_Follow2(term, undefined, this);
+			// console.log(key, "->", term, can_reach)
+			if (can_reach) {
+				this.$Follow[term].union(this.$Follow[key]);
+				newlen = this.$Follow[term].length;
+			}
+		}
+		return newlen !== lastlen;
+	}
+
+	get_FollowSet(term) {
+		this.get_FirstSet();
+		this.$Follow[term].add(new Token("$$", "$$"));
+		for (let key in this.$Terms) {
+			this.$get_Follow1(key);
+		}
+		let change = true;
+		while (change) {
+			change = false;
+			for (let key in this.$Terms) {
+				let ans = this.$get_Follow2(key);
+				if (ans) change = true;
+			}
 		}
 	}
 }
@@ -858,25 +837,25 @@ export class Match {
 		return [true, idx, ast, undefined, undefined];
 	}
 
-	check(term_name, expanded, traveled = []) {
-		this.subs[0].check(term_name, [expanded, `<Match>\t\t\tfirst of ${this.toString()}`].join(" \n-> "), traveled);
+	check(term_name, expanded, traveled = [], language) {
+		this.subs[0].check(term_name, [expanded, `<Match>\t\t\tfirst of ${this.toString()}`].join(" \n-> "), traveled, language);
 	}
 
-	get_First(last = []) {
+	get_First(last = [], language) {
 		let ans = false;
 		for (let i = 0; i < this.subs.length; i++) {
-			ans = this.subs[i].get_First(last);
+			ans = this.subs[i].get_First(last, language);
 			if (ans) break;
 		}
 		return ans;
 	}
 
-	get_Follow(term, last = [], layer = 0) {
+	get_Follow(term, last = [], layer = 0, language) {
 		// console.log(last)
 		// console.log(get_Layer(layer), "In Match:", this.toString())
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
-			let find = match.get_Follow(term, last, layer + 1);
+			let find = match.get_Follow(term, last, layer + 1, language);
 			if (find) {
 				if (i + 1 === this.subs.length) {
 					// console.log(get_Layer(layer), ">>>>>> last")
@@ -885,7 +864,7 @@ export class Match {
 				else {
 					// console.log(get_Layer(layer), ">>>>>> add")
 					let ans = [];
-					this.subs[i + 1].get_First(ans);
+					this.subs[i + 1].get_First(ans, language);
 					last.union(ans);
 					return false;
 				}
@@ -894,11 +873,11 @@ export class Match {
 		return false;
 	}
 
-	get_Follow2(term, layer = 0) {
+	get_Follow2(term, layer = 0, language) {
 		// console.log(get_Layer(layer), "In Match:", this.toString())
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
-			let find = match.get_Follow2(term, layer + 1);
+			let find = match.get_Follow2(term, layer + 1, language);
 			if (find) {
 				if (i + 1 === this.subs.length) {
 					// console.log(get_Layer(layer), ">>>>>> last")
@@ -906,7 +885,7 @@ export class Match {
 				}
 				else {
 					// console.log(get_Layer(layer), ">>>>>> add")
-					let ans = this.subs[i + 1].get_First([]);
+					let ans = this.subs[i + 1].get_First([], language);
 					return !ans;
 				}
 			}
@@ -914,10 +893,10 @@ export class Match {
 		return false;
 	}
 
-	reach(term) {
+	reach(term, language) {
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
-			let find = match.reach(term);
+			let find = match.reach(term, language);
 			if (find) {
 				return true;
 			}
@@ -954,27 +933,27 @@ export class Once_or_None extends Match {
 		return [true, idx, this.returnundefinded ? ['null', null] : undefined, error, erroridx];
 	}
 
-	check(term_name, expanded, traveled = []) {
-		this.subs.check(term_name, [expanded, `<OnceOrNone>\t\t${this.toString()}`].join(" \n-> "), traveled);
+	check(term_name, expanded, traveled = [], language) {
+		this.subs.check(term_name, [expanded, `<OnceOrNone>\t\t${this.toString()}`].join(" \n-> "), traveled, language);
 	}
 
-	get_First(last = []) {
-		this.subs.get_First(last);
+	get_First(last = [], language) {
+		this.subs.get_First(last, language);
 		return false;
 	}
 
-	get_Follow(term, last = [], layer = 0) {
+	get_Follow(term, last = [], layer = 0, language) {
 		// console.log(get_Layer(layer), "In Once_or_None:", this.toString())
-		return this.subs.get_Follow(term, last, layer + 1);
+		return this.subs.get_Follow(term, last, layer + 1, language);
 	}
 
-	get_Follow2(term, layer = 0) {
+	get_Follow2(term, layer = 0, language) {
 		// console.log(get_Layer(layer), "In Once_or_None:", this.toString())
-		return this.subs.get_Follow2(term, layer + 1);
+		return this.subs.get_Follow2(term, layer + 1, language);
 	}
 
-	reach(term) {
-		return this.subs.reach(term);
+	reach(term, language) {
+		return this.subs.reach(term, language);
 	}
 }
 
@@ -1033,27 +1012,27 @@ export class More_or_None extends Match {
 		}
 	}
 
-	check(term_name, expanded, traveled = []) {
-		this.subs.check(term_name, [expanded, `<MoreOrNone>\t\t${this.toString()}`].join(" \n-> "), traveled);
+	check(term_name, expanded, traveled = [], language) {
+		this.subs.check(term_name, [expanded, `<MoreOrNone>\t\t${this.toString()}`].join(" \n-> "), traveled, language);
 	}
 
-	get_First(last = []) {
-		this.subs.get_First(last);
+	get_First(last = [], language) {
+		this.subs.get_First(last, language);
 		return false;
 	}
 
-	get_Follow(term, last = [], layer = 0) {
+	get_Follow(term, last = [], layer = 0, language) {
 		// console.log(get_Layer(layer), "In More_or_None:", this.toString())
-		return this.subs.get_Follow(term, last, layer + 1);
+		return this.subs.get_Follow(term, last, layer + 1, language);
 	}
 
-	get_Follow2(term, layer = 0) {
+	get_Follow2(term, layer = 0, language) {
 		// console.log(get_Layer(layer), "In More_or_None:", this.toString())
-		return this.subs.get_Follow2(term, layer + 1);
+		return this.subs.get_Follow2(term, layer + 1, language);
 	}
 
-	reach(term) {
-		return this.subs.reach(term);
+	reach(term, language) {
+		return this.subs.reach(term, language);
 	}
 }
 
@@ -1093,26 +1072,26 @@ export class ChooseOne extends Match {
 			return [false, idx, undefined, new SPARK_Error('NoMatchingError', `needs ${this.toString()}\nbut no valid match`, tokens[last_idx], last_error), last_error_idx];
 	}
 
-	check(term_name, expanded, traveled = []) {
+	check(term_name, expanded, traveled = [], language) {
 		this.subs.forEach((s) => {
-			s.check(term_name, [expanded, `<ChooseOne>\t\twith ${this.toString()} select ${s.toString()}`].join(" \n-> "), traveled);
+			s.check(term_name, [expanded, `<ChooseOne>\t\twith ${this.toString()} select ${s.toString()}`].join(" \n-> "), traveled, language);
 		})
 	}
 
-	get_First(last = []) {
+	get_First(last = [], language) {
 		let ans = true;
 		this.subs.forEach((s) => {
-			let can = s.get_First(last)
+			let can = s.get_First(last, language)
 			if (!can) ans = false;
 		})
 		return ans;
 	}
 
-	get_Follow(term, last = [], layer = 0) {
+	get_Follow(term, last = [], layer = 0, language) {
 		let finded = false;
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
-			let find = match.get_Follow(term, last, layer + 1);
+			let find = match.get_Follow(term, last, layer + 1, language);
 			if (find) {
 				finded = true;
 			}
@@ -1120,11 +1099,11 @@ export class ChooseOne extends Match {
 		return finded;
 	}
 
-	get_Follow2(term, layer = 0) {
+	get_Follow2(term, layer = 0, language) {
 		let finded = false;
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
-			let find = match.get_Follow2(term, layer + 1);
+			let find = match.get_Follow2(term, layer + 1, language);
 			if (find) {
 				finded = true;
 			}
@@ -1171,20 +1150,20 @@ export class MatchToken extends Match {
 	check() {
 	}
 
-	get_First(last = []) {
+	get_First(last = [], language) {
 		last.add(new Token(this.token, this.value));
 		return true;
 	}
 
-	get_Follow(term, last = []) {
+	get_Follow(term, last = [], layer = 0, language) {
 		return false;
 	}
 
-	get_Follow2(term) {
+	get_Follow2(term, layer, language) {
 		return false;
 	}
 
-	reach(term) {
+	reach(term, language) {
 		return false;
 	}
 }
@@ -1223,7 +1202,7 @@ export class MatchTerm extends Match {
 		}
 	}
 
-	check(term_name, expanded, traveled = []) {
+	check(term_name, expanded, traveled = [], language) {
 		if (this.term_name === term_name) {
 			throw Error(`<sPARks> grammer check error: left recusion found in <${term_name}> in path\n${expanded} `)
 		}
@@ -1231,28 +1210,36 @@ export class MatchTerm extends Match {
 			throw Error(`<sPARks> grammer check error: left recusion appeared when checking <${term_name}>`)
 		}
 		else {
-			let term = SPARK_get(this.term_name);
-			term.check(term_name, [expanded, `<Term>\t\t\t${this.toString()} expand`].join(" \n-> "), traveled.concat(this.term_name));
+			let term;
+			if (language === undefined)
+				term = SPARK_get(this.term_name);
+			else
+				term = language.get(this.term_name);
+			term.check(term_name, [expanded, `<Term>\t\t\t${this.toString()} expand`].join(" \n-> "), traveled.concat(this.term_name), language);
 		}
 	}
 
-	get_First(last = []) {
-		let term = SPARK_get(this.term_name);
-		let ans = term.get_First(last);
+	get_First(last = [], language) {
+		let term;
+		if (language === undefined)
+			term = SPARK_get(this.term_name);
+		else
+			term = language.get(this.term_name);
+		let ans = term.get_First(last, language);
 		return ans;
 	}
 
-	get_Follow(term, last = [], layer) {
+	get_Follow(term, last = [], layer = 0, language) {
 		// console.log(get_Layer(layer), ">>>>>>", term === this.term_name)
 		if (term === this.term_name) return true;
 	}
 
-	get_Follow2(term, layer) {
+	get_Follow2(term, layer, language) {
 		// console.log(get_Layer(layer), ">>>>>>", term === this.term_name)
 		if (term === this.term_name) return true;
 	}
 
-	reach(term) {
+	reach(term, language) {
 		// console.log(">>>", this.term_name, term)
 		if (term === this.term_name) return true;
 		return false;
@@ -1287,6 +1274,60 @@ export class Skip extends Match {
 		return false;
 	}
 }
+
+let TestLang = new Language("Test", {
+	"E": () => {
+		return new Match([
+			new MatchTerm("T"),
+			new MatchTerm("E\'")
+		])
+	},
+	"E'": () => {
+		return new Once_or_None([
+			new Match([
+				new MatchToken("+", "+"),
+				new MatchTerm("E")
+			])
+		])
+	},
+	'T': () => {
+		return new Match([
+			new MatchTerm("F"),
+			new MatchTerm("T\'")
+		])
+	},
+	'T\'': () => {
+		return new Once_or_None([
+			new MatchTerm("T")
+		])
+	},
+	'F': () => {
+		return new Match([
+			new MatchTerm("P"),
+			new MatchTerm("F\'")
+		])
+	},
+	'F\'': () => {
+		return new Once_or_None([
+			new Match([
+				new MatchToken("*", "*"),
+				new MatchTerm("F'")
+			])
+		])
+	},
+	'P': () => {
+		return new ChooseOne([
+			new MatchToken("a", "a"),
+			new MatchToken("b", "b"),
+			new MatchToken("U", "U"),
+			new Match([
+				new MatchToken("(", "("),
+				new MatchTerm("E"),
+				new MatchToken(")", ")")
+			])
+		])
+	}
+}, "E")
 
 // SPARK_registe('E', () => {
 // 	return new Match([
@@ -1440,531 +1481,533 @@ export class Skip extends Match {
 // 	])
 // })
 
-
-SPARK_registe('constdef', () => {
-	return new Match([
-		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
-		new MatchToken("TK_ASSIGN", undefined),
-		new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] })
-	], (match, token) => {
-		return ['constdef', {
-			type: 'constdef',
-			identifier: match.nodes[0][1].value,
-			value: match.nodes[1][1].value
-		}]
-	})
-})
-
-SPARK_registe('const', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "const"),
-		new MatchTerm("constdef"),
-		new More_or_None([
-			new Match([
-				new MatchToken("TK_COMMA", undefined),
-				new MatchTerm("constdef")
-			], (match, token) => {
-				return ['constdef', match.nodes[0]]
-			})
-		], (match, token) => { return ['constdefs', match.nodes] }),
-		new MatchToken("TK_END", undefined)
-	], (match, token) => {
-		let arr = [match.nodes[0][1]]
-		arr = arr.concat(match.nodes[1][1].map((i) => {
-			return i[1][1]
-		}))
-		return ['const', {
-			type: 'const',
-			consts: arr
-		}]
-	})
-})
-
-SPARK_registe('type', () => {
-	return new Match([
-		new ChooseOne([
-			new MatchToken('TK_KEYWORD', "int", (match, token) => { return ['type', { type: 'basetype', value: 'int' }] }),
-			new MatchToken('TK_KEYWORD', "real", (match, token) => { return ['type', { type: 'basetype', value: 'real' }] }),
-			new MatchToken('TK_KEYWORD', "string", (match, token) => { return ['type', { type: 'basetype', value: 'string' }] }),
-		]),
-		new Once_or_None([
-			new Match([
-				new MatchToken("TK_LSQR", undefined),
-				new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] }),
-				new MatchToken("TK_RSQR", undefined),
-			], (match, token) => {
-				return match.nodes[0]
-			})
-		], true)
-	], (match, token) => {
-		if (match.nodes[1][0] === 'null') return match.nodes[0]
-		else return ['type', { type: 'arraytype', value: match.nodes[0][1].value, count: match.nodes[1][1].value }]
-	})
-})
-
-SPARK_registe('vardef', () => {
-	return new Match([
-		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
-		new Match([
-			new MatchToken("TK_TYPEDEFINE", undefined),
-			new MatchTerm('type')
-		], (match, token) => {
-			return match.nodes[0]
-		}),
-		new Once_or_None([
-			new Match([
+export const PL0 = function () {
+	return new Language("PL/0", {
+		'constdef': () => {
+			return new Match([
+				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
 				new MatchToken("TK_ASSIGN", undefined),
+				new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] })
+			], (match, token) => {
+				return ['constdef', {
+					type: 'constdef',
+					identifier: match.nodes[0][1].value,
+					value: match.nodes[1][1].value
+				}]
+			})
+		},
+
+		'const': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "const"),
+				new MatchTerm("constdef"),
+				new More_or_None([
+					new Match([
+						new MatchToken("TK_COMMA", undefined),
+						new MatchTerm("constdef")
+					], (match, token) => {
+						return ['constdef', match.nodes[0]]
+					})
+				], (match, token) => { return ['constdefs', match.nodes] }),
+				new MatchToken("TK_END", undefined)
+			], (match, token) => {
+				let arr = [match.nodes[0][1]]
+				arr = arr.concat(match.nodes[1][1].map((i) => {
+					return i[1][1]
+				}))
+				return ['const', {
+					type: 'const',
+					consts: arr
+				}]
+			})
+		},
+
+		'type': () => {
+			return new Match([
 				new ChooseOne([
-					new MatchTerm('exp'),
-					new MatchTerm('array')
-				])
-			], (match, token) => {
-				return match.nodes[0]
-			})
-		], true)
-	], (match, token) => {
-		return ['vardef', {
-			type: 'vardef',
-			typedef: match.nodes[1][1],
-			identifier: match.nodes[0][1].value,
-			default: match.nodes[2][1]
-		}]
-	})
-})
-
-SPARK_registe('var', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "var"),
-		new MatchTerm("vardef"),
-		new More_or_None([
-			new Match([
-				new MatchToken("TK_COMMA", undefined),
-				new MatchTerm("vardef")
-			], (match, token) => {
-				return ['identifier', match.nodes[0]]
-			})
-		], (match, token) => { return ['identifiers', match.nodes] }),
-		new MatchToken("TK_END", undefined)
-	], (match, token) => {
-		let arr = [match.nodes[0][1]]
-		arr = arr.concat(match.nodes[1][1].map((i) => {
-			return i[1][1]
-		}))
-		return ['var', {
-			type: 'var',
-			vars: arr
-		}]
-	})
-})
-
-SPARK_registe('fact', () => {
-	return new ChooseOne([
-		new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] }),
-		new MatchToken("TK_FLOAT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'real', value: token.value }] }),
-		new MatchToken("TK_STRING", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'string', value: token.value }] }),
-		new Match([
-			new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
-			new Once_or_None([
-				new Match([
-					new MatchToken("TK_LSQR", undefined),
-					new MatchTerm('exp'),
-					new MatchToken("TK_RSQR", undefined)], (match, tokens) => {
+					new MatchToken('TK_KEYWORD', "int", (match, token) => { return ['type', { type: 'basetype', value: 'int' }] }),
+					new MatchToken('TK_KEYWORD', "real", (match, token) => { return ['type', { type: 'basetype', value: 'real' }] }),
+					new MatchToken('TK_KEYWORD', "string", (match, token) => { return ['type', { type: 'basetype', value: 'string' }] }),
+				]),
+				new Once_or_None([
+					new Match([
+						new MatchToken("TK_LSQR", undefined),
+						new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] }),
+						new MatchToken("TK_RSQR", undefined),
+					], (match, token) => {
 						return match.nodes[0]
 					})
-			], true)
-		], (match, token) => {
-			if (match.nodes[1][0] === 'null') {
-				return match.nodes[0]
-			}
-			// console.log(">>>>>>>", match.nodes)
-			return ['indexof', {
-				type: 'indexof',
-				identifier: match.nodes[0][1].value,
-				index: match.nodes[1][1]
-			}]
-		}),
-		new Match([
-			new MatchToken("TK_LCIR", undefined),
-			new MatchTerm("exp"),
-			new MatchToken("TK_RCIR", undefined)
-		], (match, token) => {
-			return match.nodes[0]
-		})
-	])
-})
+				], true)
+			], (match, token) => {
+				if (match.nodes[1][0] === 'null') return match.nodes[0]
+				else return ['type', { type: 'arraytype', value: match.nodes[0][1].value, count: match.nodes[1][1].value }]
+			})
+		},
 
-SPARK_registe("term", () => {
-	return new Match([
-		new MatchTerm('fact'),
-		new More_or_None([
-			new Match([
-				new ChooseOne([
-					new MatchToken("TK_MULTIPIY", undefined, (match, token) => { return ['op', { type: 'binop', value: "*" }] }),
-					new MatchToken("TK_DIVIDE", undefined, (match, token) => { return ['op', { type: 'binop', value: "/" }] })
-				]),
-				new MatchTerm('fact')
-			], (match, token) => { return ['binop', match.nodes] })
-		], (match, token) => { return ['binoptree', match.nodes] })
-	], (match, token) => {
-		let tree = match.nodes[1][1];
-		let sub = match.nodes[0][1];
-		let node = sub;
-		if (tree.length === 0) {
-			return match.nodes[0];
-		}
-		tree.forEach((op) => {
-			let value = op[1][1][1];
-			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end, $startidx: sub.$startidx, $endidx: value.$endidx };
-			sub = node;
-		})
-		return ['binop', node]
-	})
-})
+		'vardef': () => {
+			return new Match([
+				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
+				new Match([
+					new MatchToken("TK_TYPEDEFINE", undefined),
+					new MatchTerm('type')
+				], (match, token) => {
+					return match.nodes[0]
+				}),
+				new Once_or_None([
+					new Match([
+						new MatchToken("TK_ASSIGN", undefined),
+						new ChooseOne([
+							new MatchTerm('exp'),
+							new MatchTerm('array')
+						])
+					], (match, token) => {
+						return match.nodes[0]
+					})
+				], true)
+			], (match, token) => {
+				return ['vardef', {
+					type: 'vardef',
+					typedef: match.nodes[1][1],
+					identifier: match.nodes[0][1].value,
+					default: match.nodes[2][1]
+				}]
+			})
+		},
 
-SPARK_registe("expfront", () => {
-	return new Match([
-		new Once_or_None([
-			new ChooseOne([
-				new MatchToken("TK_ADD", undefined, (match, token) => { return ['type', { type: 'binop', value: "+" }] }),
-				new MatchToken("TK_MINUS", undefined, (match, token) => { return ['type', { type: 'binop', value: "-" }] })
+		'var': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "var"),
+				new MatchTerm("vardef"),
+				new More_or_None([
+					new Match([
+						new MatchToken("TK_COMMA", undefined),
+						new MatchTerm("vardef")
+					], (match, token) => {
+						return ['identifier', match.nodes[0]]
+					})
+				], (match, token) => { return ['identifiers', match.nodes] }),
+				new MatchToken("TK_END", undefined)
+			], (match, token) => {
+				let arr = [match.nodes[0][1]]
+				arr = arr.concat(match.nodes[1][1].map((i) => {
+					return i[1][1]
+				}))
+				return ['var', {
+					type: 'var',
+					vars: arr
+				}]
+			})
+		},
+
+		'fact': () => {
+			return new ChooseOne([
+				new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] }),
+				new MatchToken("TK_FLOAT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'real', value: token.value }] }),
+				new MatchToken("TK_STRING", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'string', value: token.value }] }),
+				new Match([
+					new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
+					new Once_or_None([
+						new Match([
+							new MatchToken("TK_LSQR", undefined),
+							new MatchTerm('exp'),
+							new MatchToken("TK_RSQR", undefined)], (match, tokens) => {
+								return match.nodes[0]
+							})
+					], true)
+				], (match, token) => {
+					if (match.nodes[1][0] === 'null') {
+						return match.nodes[0]
+					}
+					// console.log(">>>>>>>", match.nodes)
+					return ['indexof', {
+						type: 'indexof',
+						identifier: match.nodes[0][1].value,
+						index: match.nodes[1][1]
+					}]
+				}),
+				new Match([
+					new MatchToken("TK_LCIR", undefined),
+					new MatchTerm("exp"),
+					new MatchToken("TK_RCIR", undefined)
+				], (match, token) => {
+					return match.nodes[0]
+				})
 			])
-		]),
-		new MatchTerm('term')
-	], (match, token) => {
-		if (match.nodes[0] && match.nodes[1])
-			return ['uniop', { type: 'uniop', value: match.nodes[0][1].value, sub: [match.nodes[1][1]] }]
-		else {
-			return match.nodes[0]
-		}
-	})
-})
+		},
 
-SPARK_registe("exp", () => {
-	return new Match([
-		new MatchTerm('expfront'),
-		new More_or_None([
-			new Match([
-				new ChooseOne([
-					new MatchToken("TK_ADD", undefined, (match, token) => { return ['op', { type: 'binop', value: "+" }] }),
-					new MatchToken("TK_MINUS", undefined, (match, token) => { return ['op', { type: 'binop', value: "-" }] }),
+		"term": () => {
+			return new Match([
+				new MatchTerm('fact'),
+				new More_or_None([
+					new Match([
+						new ChooseOne([
+							new MatchToken("TK_MULTIPIY", undefined, (match, token) => { return ['op', { type: 'binop', value: "*" }] }),
+							new MatchToken("TK_DIVIDE", undefined, (match, token) => { return ['op', { type: 'binop', value: "/" }] })
+						]),
+						new MatchTerm('fact')
+					], (match, token) => { return ['binop', match.nodes] })
+				], (match, token) => { return ['binoptree', match.nodes] })
+			], (match, token) => {
+				let tree = match.nodes[1][1];
+				let sub = match.nodes[0][1];
+				let node = sub;
+				if (tree.length === 0) {
+					return match.nodes[0];
+				}
+				tree.forEach((op) => {
+					let value = op[1][1][1];
+					node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end, $startidx: sub.$startidx, $endidx: value.$endidx };
+					sub = node;
+				})
+				return ['binop', node]
+			})
+		},
+
+		"expfront": () => {
+			return new Match([
+				new Once_or_None([
+					new ChooseOne([
+						new MatchToken("TK_ADD", undefined, (match, token) => { return ['type', { type: 'binop', value: "+" }] }),
+						new MatchToken("TK_MINUS", undefined, (match, token) => { return ['type', { type: 'binop', value: "-" }] })
+					])
 				]),
 				new MatchTerm('term')
-			], (match, token) => { return ['binop', match.nodes] })
-		], (match, token) => { return ['binoptree', match.nodes] })
-	], (match, token) => {
-		let tree = match.nodes[1][1];
-		let sub = match.nodes[0][1];
-		let node = sub;
-		if (tree.length === 0) {
-			return match.nodes[0];
-		}
-		tree.forEach((op) => {
-			let value = op[1][1][1];
-			node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end, $startidx: sub.$startidx, $endidx: value.$endidx };
-			sub = node;
-		})
-		return ['binop', node]
-	})
-})
-
-SPARK_registe('array', () => {
-	return new Match([
-		new MatchToken("TK_LSQR", undefined),
-		new MatchTerm("exp"),
-		new More_or_None([
-			new Match([
-				new MatchToken("TK_COMMA", undefined),
-				new MatchTerm("exp")
 			], (match, token) => {
-				return ['expression', match.nodes[0]]
+				if (match.nodes[0] && match.nodes[1])
+					return ['uniop', { type: 'uniop', value: match.nodes[0][1].value, sub: [match.nodes[1][1]] }]
+				else {
+					return match.nodes[0]
+				}
 			})
-		], (match, token) => { return ['expressions', match.nodes] }),
-		new MatchToken("TK_RSQR", undefined),
-	], (match, token) => {
-		// console.log(match.nodes)
-		let arr = [match.nodes[0][1]]
-		arr = arr.concat(match.nodes[1][1].map((i) => {
-			return i[1][1]
-		}))
-		return ['array', {
-			type: 'array',
-			expressions: arr,
-			count: arr.length
-		}]
-	})
-})
+		},
 
-SPARK_registe('cmp', () => {
-	return new ChooseOne([
-		new MatchToken("TK_EQUAL", undefined, (match, token) => { return ['value', { type: 'binop', value: '==' }] }),
-		new MatchToken("TK_NOTEQUAL", undefined, (match, token) => { return ['value', { type: 'binop', value: '!=' }] }),
-		new MatchToken("TK_LESS", undefined, (match, token) => { return ['value', { type: 'binop', value: '<' }] }),
-		new MatchToken("TK_GREATER", undefined, (match, token) => { return ['value', { type: 'binop', value: '>' }] }),
-		new MatchToken("TK_LESSE", undefined, (match, token) => { return ['value', { type: 'binop', value: '<=' }] }),
-		new MatchToken("TK_GREATERE", undefined, (match, token) => { return ['value', { type: 'binop', value: '>=' }] }),
-	])
-})
+		"exp": () => {
+			return new Match([
+				new MatchTerm('expfront'),
+				new More_or_None([
+					new Match([
+						new ChooseOne([
+							new MatchToken("TK_ADD", undefined, (match, token) => { return ['op', { type: 'binop', value: "+" }] }),
+							new MatchToken("TK_MINUS", undefined, (match, token) => { return ['op', { type: 'binop', value: "-" }] }),
+						]),
+						new MatchTerm('term')
+					], (match, token) => { return ['binop', match.nodes] })
+				], (match, token) => { return ['binoptree', match.nodes] })
+			], (match, token) => {
+				let tree = match.nodes[1][1];
+				let sub = match.nodes[0][1];
+				let node = sub;
+				if (tree.length === 0) {
+					return match.nodes[0];
+				}
+				tree.forEach((op) => {
+					let value = op[1][1][1];
+					node = { type: 'binop', value: op[1][0][1].value, sub: [sub, value], $start: sub.$start, $end: value.$end, $startidx: sub.$startidx, $endidx: value.$endidx };
+					sub = node;
+				})
+				return ['binop', node]
+			})
+		},
 
-SPARK_registe("cmpexp", () => {
-	return new ChooseOne([
-		new Match([
-			new MatchTerm("exp"),
-			new MatchTerm("cmp"),
-			new MatchTerm("exp")
-		], (match, token) => {
-			return ['binop', {
-				type: 'binop',
-				value: match.nodes[1][1].value,
-				sub: [
-					match.nodes[0][1],
-					match.nodes[2][1]
-				]
-			}]
-		}),
-		new Match([
-			new MatchToken("TK_KEYWORD", 'odd'),
-			new MatchTerm("exp")
-		], (match, token) => {
-			return ['binop', {
-				type: 'uniop',
-				value: 'not',
-				sub: [
-					match.nodes[0][1]
-				]
-			}]
-		}),
-	])
-})
+		'array': () => {
+			return new Match([
+				new MatchToken("TK_LSQR", undefined),
+				new MatchTerm("exp"),
+				new More_or_None([
+					new Match([
+						new MatchToken("TK_COMMA", undefined),
+						new MatchTerm("exp")
+					], (match, token) => {
+						return ['expression', match.nodes[0]]
+					})
+				], (match, token) => { return ['expressions', match.nodes] }),
+				new MatchToken("TK_RSQR", undefined),
+			], (match, token) => {
+				// console.log(match.nodes)
+				let arr = [match.nodes[0][1]]
+				arr = arr.concat(match.nodes[1][1].map((i) => {
+					return i[1][1]
+				}))
+				return ['array', {
+					type: 'array',
+					expressions: arr,
+					count: arr.length
+				}]
+			})
+		},
 
-SPARK_registe('statment', () => {
-	return new Once_or_None([
-		new ChooseOne([
-			new MatchTerm('assign'),
-			new MatchTerm('if'),
-			new MatchTerm('while'),
-			new MatchTerm('call'),
-			new MatchTerm('read'),
-			new MatchTerm('write'),
-			new MatchTerm('block'),
-			// new Skip()
-		])
-	])
-})
+		'cmp': () => {
+			return new ChooseOne([
+				new MatchToken("TK_EQUAL", undefined, (match, token) => { return ['value', { type: 'binop', value: '==' }] }),
+				new MatchToken("TK_NOTEQUAL", undefined, (match, token) => { return ['value', { type: 'binop', value: '!=' }] }),
+				new MatchToken("TK_LESS", undefined, (match, token) => { return ['value', { type: 'binop', value: '<' }] }),
+				new MatchToken("TK_GREATER", undefined, (match, token) => { return ['value', { type: 'binop', value: '>' }] }),
+				new MatchToken("TK_LESSE", undefined, (match, token) => { return ['value', { type: 'binop', value: '<=' }] }),
+				new MatchToken("TK_GREATERE", undefined, (match, token) => { return ['value', { type: 'binop', value: '>=' }] }),
+			])
+		},
 
-SPARK_registe("assign", () => {
-	return new Match([
-		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
-		new MatchToken("TK_BECOME", undefined),
-		new MatchTerm('exp')
-	], (match, token) => {
-		return ['assign', {
-			type: 'assign',
-			identifier: match.nodes[0][1],
-			expression: match.nodes[1][1]
-		}]
-	})
-})
+		"cmpexp": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchTerm("exp"),
+					new MatchTerm("cmp"),
+					new MatchTerm("exp")
+				], (match, token) => {
+					return ['binop', {
+						type: 'binop',
+						value: match.nodes[1][1].value,
+						sub: [
+							match.nodes[0][1],
+							match.nodes[2][1]
+						]
+					}]
+				}),
+				new Match([
+					new MatchToken("TK_KEYWORD", 'odd'),
+					new MatchTerm("exp")
+				], (match, token) => {
+					return ['binop', {
+						type: 'uniop',
+						value: 'not',
+						sub: [
+							match.nodes[0][1]
+						]
+					}]
+				}),
+			])
+		},
 
-SPARK_registe('if', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "if"),
-		new MatchTerm('cmpexp'),
-		new MatchToken("TK_KEYWORD", "then"),
-		new MatchTerm('statment'),
-		new Once_or_None([
-			new Match([
-				new MatchToken("TK_KEYWORD", "else"),
+		'statment': () => {
+			return new Once_or_None([
+				new ChooseOne([
+					new MatchTerm('assign'),
+					new MatchTerm('if'),
+					new MatchTerm('while'),
+					new MatchTerm('call'),
+					new MatchTerm('read'),
+					new MatchTerm('write'),
+					new MatchTerm('block'),
+					// new Skip()
+				])
+			])
+		},
+
+		"assign": () => {
+			return new Match([
+				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
+				new MatchToken("TK_BECOME", undefined),
+				new MatchTerm('exp')
+			], (match, token) => {
+				return ['assign', {
+					type: 'assign',
+					identifier: match.nodes[0][1],
+					expression: match.nodes[1][1]
+				}]
+			})
+		},
+
+		'if': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "if"),
+				new MatchTerm('cmpexp'),
+				new MatchToken("TK_KEYWORD", "then"),
+				new MatchTerm('statment'),
+				new Once_or_None([
+					new Match([
+						new MatchToken("TK_KEYWORD", "else"),
+						new MatchTerm('statment')
+					], (match, token) => {
+						return match.nodes[0]
+					})
+				], true)
+			], (match, token) => {
+				return ['if', {
+					type: 'if',
+					expression: match.nodes[0][1],
+					sub: [match.nodes[1][1]],
+					else: [match.nodes[2][1]]
+				}]
+			})
+		},
+
+		'while': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "while"),
+				new MatchTerm('cmpexp'),
+				new MatchToken("TK_KEYWORD", "do"),
+				new MatchTerm('statment'),
+			], (match, token) => {
+				return ['while', {
+					type: 'while',
+					expression: match.nodes[0][1],
+					sub: [match.nodes[1][1]]
+				}]
+			})
+		},
+
+		'call': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "call"),
+				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] })
+			], (match, token) => {
+				return ['call', {
+					type: 'call',
+					identifier: match.nodes[0][1].value
+				}]
+			})
+		},
+
+		'read': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "read"),
+				new MatchToken("TK_LCIR", undefined),
+				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
+				new More_or_None([
+					new Match([
+						new MatchToken("TK_COMMA", undefined),
+						new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] })
+					], (match, token) => {
+						return ['identifier', match.nodes[0]]
+					})
+				], (match, token) => { return ['identifiers', match.nodes] }),
+				new MatchToken("TK_RCIR", undefined),
+			], (match, token) => {
+				// console.log(match.nodes)
+				let arr = [match.nodes[0][1].value]
+				arr = arr.concat(match.nodes[1][1].map((i) => {
+					return i[1][1].value
+				}))
+				return ['read', {
+					type: 'read',
+					identifiers: arr
+				}]
+			})
+		},
+
+		'write': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "write"),
+				new MatchToken("TK_LCIR", undefined),
+				new MatchTerm("exp"),
+				new More_or_None([
+					new Match([
+						new MatchToken("TK_COMMA", undefined),
+						new MatchTerm("exp")
+					], (match, token) => {
+						return ['expression', match.nodes[0]]
+					})
+				], (match, token) => { return ['expressions', match.nodes] }),
+				new MatchToken("TK_RCIR", undefined),
+			], (match, token) => {
+				// console.log(match.nodes)
+				let arr = [match.nodes[0][1]]
+				arr = arr.concat(match.nodes[1][1].map((i) => {
+					return i[1][1]
+				}))
+				return ['write', {
+					type: 'write',
+					expressions: arr
+				}]
+			})
+		},
+
+		'block': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "begin"),
+				new MatchTerm("statment"),
+				new More_or_None([
+					new Match([
+						new MatchToken("TK_END", undefined),
+						new MatchTerm("statment")
+					], (match, token) => {
+						// console.log(match.nodes)
+						if (match.nodes[0][1] === null) return undefined
+						return ['statment', match.nodes[0]]
+					})
+				], (match, token) => { return ['statments', match.nodes] }),
+				new MatchToken("TK_KEYWORD", "end")
+			], (match, token) => {
+				// console.log(match.nodes)
+				let arr = match.nodes[0][1] === null ? [] : [match.nodes[0][1]]
+				arr = arr.concat(match.nodes[1][1].map((i) => {
+					return i[1][1]
+				}))
+				return ['block', {
+					type: 'block',
+					statments: arr
+				}]
+			})
+		},
+
+		'proceduredef': () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD", "procedure"),
+				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
+				new MatchToken("TK_END", undefined)
+			], (match, token) => {
+				return ['procdef', {
+					type: 'procdef',
+					identifier: match.nodes[0][1].value
+				}]
+			})
+		},
+
+		'procedure': () => {
+			return new Match([
+				new MatchTerm("proceduredef"),
+				new MatchTerm("subprogram"),
+				new MatchToken("TK_END", undefined)
+			], (match, token) => {
+				return ['proc', {
+					type: 'proc',
+					identifier: match.nodes[0][1].identifier,
+					block: match.nodes[1][1],
+				}]
+			})
+		},
+
+		'subprogram': () => {
+			return new Match([
+				new More_or_None([
+					new MatchTerm("const")
+				], (match, token) => {
+					return ['consts', match.nodes]
+				}),
+				new More_or_None([
+					new MatchTerm("var")
+				], (match, token) => {
+					return ['vars', match.nodes]
+				}),
+				new More_or_None([
+					new MatchTerm("procedure")
+				], (match, token) => {
+					return ['procs', match.nodes]
+				}),
 				new MatchTerm('statment')
+			], (match, token) => {
+				// console.log(match.nodes)
+				return ['subprogram', {
+					type: 'subprogram',
+					consts: match.nodes[0][1].map(i => i[1]),
+					vars: match.nodes[1][1].map(i => i[1]),
+					procs: match.nodes[2][1].map(i => i[1]),
+					subs: match.nodes[3][1]
+				}]
+			})
+		},
+
+		'program': () => {
+			return new Match([
+				new MatchTerm('subprogram'),
+				new MatchToken("TK_DOT", undefined),
+				new MatchToken("TK_EOF", undefined)
 			], (match, token) => {
 				return match.nodes[0]
 			})
-		], true)
-	], (match, token) => {
-		return ['if', {
-			type: 'if',
-			expression: match.nodes[0][1],
-			sub: [match.nodes[1][1]],
-			else: [match.nodes[2][1]]
-		}]
-	})
-})
-
-SPARK_registe('while', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "while"),
-		new MatchTerm('cmpexp'),
-		new MatchToken("TK_KEYWORD", "do"),
-		new MatchTerm('statment'),
-	], (match, token) => {
-		return ['while', {
-			type: 'while',
-			expression: match.nodes[0][1],
-			sub: [match.nodes[1][1]]
-		}]
-	})
-})
-
-SPARK_registe('call', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "call"),
-		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] })
-	], (match, token) => {
-		return ['call', {
-			type: 'call',
-			identifier: match.nodes[0][1].value
-		}]
-	})
-})
-
-SPARK_registe('read', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "read"),
-		new MatchToken("TK_LCIR", undefined),
-		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
-		new More_or_None([
-			new Match([
-				new MatchToken("TK_COMMA", undefined),
-				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] })
-			], (match, token) => {
-				return ['identifier', match.nodes[0]]
-			})
-		], (match, token) => { return ['identifiers', match.nodes] }),
-		new MatchToken("TK_RCIR", undefined),
-	], (match, token) => {
-		// console.log(match.nodes)
-		let arr = [match.nodes[0][1].value]
-		arr = arr.concat(match.nodes[1][1].map((i) => {
-			return i[1][1].value
-		}))
-		return ['read', {
-			type: 'read',
-			identifiers: arr
-		}]
-	})
-})
-
-SPARK_registe('write', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "write"),
-		new MatchToken("TK_LCIR", undefined),
-		new MatchTerm("exp"),
-		new More_or_None([
-			new Match([
-				new MatchToken("TK_COMMA", undefined),
-				new MatchTerm("exp")
-			], (match, token) => {
-				return ['expression', match.nodes[0]]
-			})
-		], (match, token) => { return ['expressions', match.nodes] }),
-		new MatchToken("TK_RCIR", undefined),
-	], (match, token) => {
-		// console.log(match.nodes)
-		let arr = [match.nodes[0][1]]
-		arr = arr.concat(match.nodes[1][1].map((i) => {
-			return i[1][1]
-		}))
-		return ['write', {
-			type: 'write',
-			expressions: arr
-		}]
-	})
-})
-
-SPARK_registe('block', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "begin"),
-		new MatchTerm("statment"),
-		new More_or_None([
-			new Match([
-				new MatchToken("TK_END", undefined),
-				new MatchTerm("statment")
-			], (match, token) => {
-				// console.log(match.nodes)
-				if (match.nodes[0][1] === null) return undefined
-				return ['statment', match.nodes[0]]
-			})
-		], (match, token) => { return ['statments', match.nodes] }),
-		new MatchToken("TK_KEYWORD", "end")
-	], (match, token) => {
-		// console.log(match.nodes)
-		let arr = match.nodes[0][1] === null ? [] : [match.nodes[0][1]]
-		arr = arr.concat(match.nodes[1][1].map((i) => {
-			return i[1][1]
-		}))
-		return ['block', {
-			type: 'block',
-			statments: arr
-		}]
-	})
-})
-
-SPARK_registe('proceduredef', () => {
-	return new Match([
-		new MatchToken("TK_KEYWORD", "procedure"),
-		new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
-		new MatchToken("TK_END", undefined)
-	], (match, token) => {
-		return ['procdef', {
-			type: 'procdef',
-			identifier: match.nodes[0][1].value
-		}]
-	})
-})
-
-SPARK_registe('procedure', () => {
-	return new Match([
-		new MatchTerm("proceduredef"),
-		new MatchTerm("subprogram"),
-		new MatchToken("TK_END", undefined)
-	], (match, token) => {
-		return ['proc', {
-			type: 'proc',
-			identifier: match.nodes[0][1].identifier,
-			block: match.nodes[1][1],
-		}]
-	})
-})
-
-SPARK_registe('subprogram', () => {
-	return new Match([
-		new More_or_None([
-			new MatchTerm("const")
-		], (match, token) => {
-			return ['consts', match.nodes]
-		}),
-		new More_or_None([
-			new MatchTerm("var")
-		], (match, token) => {
-			return ['vars', match.nodes]
-		}),
-		new More_or_None([
-			new MatchTerm("procedure")
-		], (match, token) => {
-			return ['procs', match.nodes]
-		}),
-		new MatchTerm('statment')
-	], (match, token) => {
-		// console.log(match.nodes)
-		return ['subprogram', {
-			type: 'subprogram',
-			consts: match.nodes[0][1].map(i => i[1]),
-			vars: match.nodes[1][1].map(i => i[1]),
-			procs: match.nodes[2][1].map(i => i[1]),
-			subs: match.nodes[3][1]
-		}]
-	})
-})
-
-SPARK_registe('program', () => {
-	return new Match([
-		new MatchTerm('subprogram'),
-		new MatchToken("TK_DOT", undefined),
-		new MatchToken("TK_EOF", undefined)
-	], (match, token) => {
-		return match.nodes[0]
-	})
-})
-
+		}
+	}, "program");
+}
 
 Array.prototype.tab = function () {
 	return this.join("\n").split('\n').map((i) => "    " + i).join('\n')
@@ -2441,10 +2484,3 @@ export class JSConverter {
 		return this.target;
 	}
 }
-
-SPARK_print();
-SPARK_check();
-// console.log("");
-SPARK_get_Follow("program");
-console.log($First);
-console.log($Follow);
