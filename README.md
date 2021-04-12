@@ -2,6 +2,10 @@
 by SUN
 
 **2021/4/6 _更新_：现支持求解FIRST/FOLLOW集**
+**2021/4/9 _更新_：基于Walker/Collect/Transform的静态分析和AST变换**
+**2021/4/12 _更新_：**
+- [x] AST的 start / end 替换为```ScriptPosition```
+- [ ] 新增```Language```语言类 // 进行中
 
 #### 一个js编写的“递归下降”语法分析器
 
@@ -75,7 +79,8 @@ let [finished, fin_index, ast, error, error_index] = SPARK_get("条件语句").m
 ---
 ### **未来进度：**
 sPARks
-- [ ] AST的 start / end 替换为```ScriptPosition```
+- [x] AST的 start / end 替换为```ScriptPosition```
+- [ ] 新增```Language```语言类 // 进行中
 - [x] More_or_None 的错误提示
 - [x] 左递归检查
 - [x] 默认AST格式 // 实验特性，可作为文法测试使用，实际中请手动实现
