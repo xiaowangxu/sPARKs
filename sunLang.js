@@ -1275,6 +1275,33 @@ export class Skip extends Match {
 	}
 }
 
+// Exp := a b c
+// let Calcu = new Language("CalcuLang", {
+// 	Sign: () => {
+// 		return new ChooseOne([
+// 			new MatchToken('TK_ADD', undefined),
+// 			new MatchToken('TK_MINUS', undefined)
+// 		])
+// 	},
+// 	Exp: () => {
+// 		return new Match([
+// 			new MatchTerm('Exp'),
+// 			new More_or_None([
+// 				new MatchTerm('Sign')
+// 			])
+// 		])
+// 	}
+// }, "Exp")
+
+// Calcu.print()
+
+// let source = new SourceScript("+/+++--++-", "terminal");
+// let lexer = new Lexer(source);
+// lexer.tokenize();
+// console.log(Calcu.match(lexer.tokens))
+
+
+
 let TestLang = new Language("Test", {
 	"E": () => {
 		return new Match([
@@ -1328,6 +1355,8 @@ let TestLang = new Language("Test", {
 		])
 	}
 }, "E")
+
+TestLang.print();
 
 // SPARK_registe('E', () => {
 // 	return new Match([
@@ -1487,12 +1516,15 @@ export const PL0 = function () {
 			return new Match([
 				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
 				new MatchToken("TK_ASSIGN", undefined),
-				new MatchToken("TK_INT", undefined, (match, token) => { return ['value', { type: 'value', datatype: 'int', value: token.value }] })
+				new ChooseOne([
+					new MatchTerm('exp'),
+					new MatchTerm('array')
+				])
 			], (match, token) => {
 				return ['constdef', {
 					type: 'constdef',
 					identifier: match.nodes[0][1].value,
-					value: match.nodes[1][1].value
+					value: match.nodes[1][1]
 				}]
 			})
 		},
@@ -1853,7 +1885,7 @@ export const PL0 = function () {
 			], (match, token) => {
 				return ['call', {
 					type: 'call',
-					identifier: match.nodes[0][1].value
+					identifier: match.nodes[0][1]
 				}]
 			})
 		},
@@ -1874,9 +1906,9 @@ export const PL0 = function () {
 				new MatchToken("TK_RCIR", undefined),
 			], (match, token) => {
 				// console.log(match.nodes)
-				let arr = [match.nodes[0][1].value]
+				let arr = [match.nodes[0][1]]
 				arr = arr.concat(match.nodes[1][1].map((i) => {
-					return i[1][1].value
+					return i[1][1]
 				}))
 				return ['read', {
 					type: 'read',
@@ -1961,7 +1993,7 @@ export const PL0 = function () {
 			], (match, token) => {
 				return ['proc', {
 					type: 'proc',
-					identifier: match.nodes[0][1].identifier,
+					identifier: match.nodes[0][1],
 					block: match.nodes[1][1],
 				}]
 			})
@@ -2016,17 +2048,20 @@ Array.prototype.tab = function () {
 // walker
 export const PL0Visitors = {
 	subprogram: {
-		walk(node) {
+		walk(node, path) {
+			path.$scope.new_Scope()
 			return ["consts", "vars", "procs", "subs"]
 		},
 		transform(path) {
+			path.$scope.exit_Scope()
 			return path.node
 		}
 	},
+
 	const: {
 		walk(node) {
 			// console.log(">>> consts visitor walk func")
-			return []
+			return ["consts"]
 		},
 		transform(path) {
 			return path.node
@@ -2049,6 +2084,11 @@ export const PL0Visitors = {
 			// console.log(path.node)
 			let iden = new Identifier(path.node.identifier, "var", path.node, path.node.typedef)
 			let [ans, old] = path.$scope.registe(iden)
+			if (!ans) {
+				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(old.def.$start, old.def.$end, "~", "yellow")
+				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">last definition of ${old.def.identifier}</a>`
+				return [path.node, new BaseError("VariableRedefinitionError", `\n${reason}\n\nwhen defining var <a style="color: rgb(0,255,0);">${path.node.identifier}</a>\nwhich has been already defined before`, path.$start, path.$end)]
+			}
 			if (path.node.default !== null)
 				if (path.node.default.typedef.value !== path.node.typedef.value) {
 					let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.typedef.$start, path.node.typedef.$end, "~", "yellow")
@@ -2058,12 +2098,22 @@ export const PL0Visitors = {
 					let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a><a style="color: yellow">${path.node.typedef.value}</a>` + '\n\n' + str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">${path.node.default.typedef.value}</a>`
 					return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nvariable <a style="color: rgb(0,255,0);">${path.node.identifier}</a> is type of ${path.node.typedef.value}\nbut its default value is type of ${path.node.default.typedef.value} which is not compatible`, path.$start, path.$end)]
 				}
-
-
+			return path.node
+		}
+	},
+	constdef: {
+		walk(node) {
+			// console.log(">>> vardef visitor walk func", node)
+			return ["value"]
+		},
+		transform(path) {
+			// console.log(path.node)
+			let iden = new Identifier(path.node.identifier, "const", path.node, path.node.value.typedef)
+			let [ans, old] = path.$scope.registe(iden)
 			if (!ans) {
 				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(old.def.$start, old.def.$end, "~", "yellow")
 				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">last definition of ${old.def.identifier}</a>`
-				return [path.node, new BaseError("VariableRedefinitionError", `\n${reason}\n\nwhen defining var ${path.node.identifier}\nwhich has been already defined before`, path.$start, path.$end)]
+				return [path.node, new BaseError("VariableRedefinitionError", `\n${reason}\n\nwhen defining var <a style="color: rgb(0,255,0);">${path.node.identifier}</a>\nwhich has been already defined before`, path.$start, path.$end)]
 			}
 			return path.node
 		}
@@ -2074,7 +2124,14 @@ export const PL0Visitors = {
 			return ["identifier", "expression"]
 		},
 		transform(path) {
+			console.log(path.node)
 			if (path.node.identifier.typedef.value === '$unknown') return path.node
+			if (path.node.identifier.$const) {
+				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.node.identifier.$start, path.node.identifier.$end, "~", "yellow")
+				// console.log(str)
+				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">const</a>`
+				return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nconst <a style="color: rgb(0,255,0);">${path.node.identifier.value}</a> can not be assigned`, path.$start, path.$end)]
+			}
 			if (path.node.identifier.typedef !== null && path.node.expression.typedef.value !== path.node.identifier.typedef.value) {
 				let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.identifier.typedef.$start, path.node.identifier.typedef.$end, "~", "yellow")
 				// console.log(str)
@@ -2112,11 +2169,17 @@ export const PL0Visitors = {
 		transform(path) {
 			let iden = path.$scope.get(path.node.value);
 			if (iden === undefined) {
+				path.node.identype = "$unknown";
+				path.node.$const = false;
 				path.node.typedef = { type: 'type', value: '$unknown' };
+				path.node.def = undefined;
 				return [path.node, new BaseError("IdentifierUndefinedError", `variable <a style="color: rgb(0,255,0);">${path.node.value}</a> is not defined in this scope`, path.$start, path.$end)]
 			}
 			else {
+				path.node.identype = iden.type;
+				path.node.$const = iden.type === 'const';
 				path.node.typedef = iden.typedef;
+				path.node.def = iden.def;
 			}
 			path.node.$immediate = false;
 			return path.node;
@@ -2184,6 +2247,60 @@ export const PL0Visitors = {
 				sub: path.node.sub
 			}
 		}
+	},
+	proc: {
+		walk(node) {
+			return ["block"]
+		},
+		transform(path) {
+			let iden = new Identifier(path.node.identifier.identifier, "procedure", path.node, path.node.typedef)
+			let [ans, old] = path.$scope.registe(iden)
+			if (!ans) {
+				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(old.def.$start, old.def.$end, "~", "yellow")
+				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">last definition of ${old.def.identifier}</a>`
+				return [path.node, new BaseError("IdentifierRedefinitionError", `\n${reason}\n\nwhen defining procedure <a style="color: rgb(0,255,0);">${path.node.identifier.identifier}</a>\nwhich has been already used before`, path.node.identifier.$start, path.node.identifier.$end)]
+			}
+			return path.node
+		}
+	},
+	block: {
+		walk(node) {
+			return ["statments"]
+		},
+		transform(path) {
+			return path.node
+		}
+	},
+	call: {
+		walk(node) {
+			return ["identifier"]
+		},
+		transform(path) {
+			if (path.node.identifier.identype === '$unknown') return path.node;
+			console.log(path.node.identifier)
+			if (path.node.identifier.identype !== 'procedure') {
+				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.node.identifier.def.$start, path.node.identifier.def.$end, "~", "yellow")
+				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">definition of ${path.node.identifier.value}</a>`
+				return [path.node, new BaseError("UnmatchedProcedureError", `\n${reason}\n\nwhen calling procedure <a style="color: rgb(0,255,0);">${path.node.identifier.value}</a>\nwhich is not a callable procedure`, path.node.identifier.$start, path.node.identifier.$end)]
+			}
+			return path.node
+		}
+	},
+	write: {
+		walk(node) {
+			return ["expressions"]
+		},
+		transform(path) {
+			return path.node
+		}
+	},
+	read: {
+		walk(node) {
+			return ["identifiers"]
+		},
+		transform(path) {
+			return path.node
+		}
 	}
 }
 
@@ -2198,13 +2315,18 @@ class Identifier {
 
 class Scope {
 	constructor() {
-		this.stack = [],
-			this.current = {}
+		this.stack = [];
+		this.current = {};
 	}
 
 	get(name) {
 		if (this.current[name] !== undefined) return this.current[name];
-		else return undefined;
+		let len = this.stack.length - 1;
+		while (len >= 0) {
+			if (this.stack[len][name] !== undefined) return this.stack[len][name];
+			len--;
+		}
+		return undefined;
 	}
 
 	registe(identifier) {
@@ -2216,6 +2338,15 @@ class Scope {
 			console.log(this)
 			return [true, undefined];
 		}
+	}
+
+	new_Scope() {
+		this.stack.push(this.current);
+		this.current = {};
+	}
+
+	exit_Scope() {
+		this.current = this.stack.pop();
 	}
 }
 
@@ -2229,7 +2360,7 @@ export class Walker {
 	}
 
 	create_Node(ast, parent = null) {
-		console.log(ast)
+		// console.log(ast)
 		return {
 			parent: parent,
 			node: ast,
@@ -2248,7 +2379,7 @@ export class Walker {
 		if (this.visitors[ast.type] === undefined) {
 			return [ast, error]
 		}
-		let subs = this.visitors[ast.type].walk(ast) || [];
+		let subs = this.visitors[ast.type].walk(ast, this.create_Node(ast, parent)) || [];
 		if (subs !== undefined) {
 			subs.forEach((key) => {
 				let target = ast[key];
@@ -2373,16 +2504,16 @@ export class JSConverter {
 			this.errors.push({ message: `标识符 "${identifier}" 重定义`, start: ast.$start, end: ast.$end })
 		}
 		let body = this.subprogram(ast.block).split('\n').tab()
-		return `function ${identifier}() {\n${body}\n}`
+		return `function ${identifier.identifier}() {\n${body}\n}`
 	}
 
 	call(ast) {
 		// console.log(ast)
-		return `${ast.identifier}()`
+		return `${ast.identifier.value}();`
 	}
 
 	assign(ast) {
-		return `${ast.identifier} = ${this.exp(ast.expression)};`
+		return `${ast.identifier.value} = ${this.exp(ast.expression)};`
 	}
 
 	identifier(ast) {
@@ -2450,7 +2581,7 @@ export class JSConverter {
 				if (!ans) {
 					that.errors.push({ message: `标识符 "${c.identifier}" 重定义`, start: c.$start, end: c.$end })
 				}
-				arr.push(`const ${c.identifier} = ${c.value};`)
+				arr.push(`const ${c.identifier} = ${this.exp(c.value)};`)
 			})
 		})
 		let vars = ast.vars;
