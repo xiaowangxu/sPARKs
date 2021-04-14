@@ -95,7 +95,8 @@ end.
 	})
 	// import * as Data from './demo.sun';
 
-	let PL0 = SUN.PL0();
+	let PL0 = SUN.BasicCalculator();
+	console.log(PL0)
 	PL0.print();
 
 	window.test = function () {
@@ -141,37 +142,37 @@ end.
 		else {
 			document.getElementById('parser').innerHTML = '<a style="color: rgb(0,255,0);">OK</a>'
 			if (ast[2] !== undefined) {
-				let walker = new SUN.Walker(ast[2][1], SUN.PL0Visitors, lexer.tokens, source);
-				let [astnew, err] = walker.walk();
-				// console.log(err)
-				let ans = []
-				err.forEach((err) => {
-					console.log(err);
-					let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
-					ans.push(s + `${starter}<a style="color: red;">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `${i}`).join('\n')}</a>\n`);
-				})
+				// let walker = new SUN.Walker(ast[2][1], SUN.PL0Visitors, lexer.tokens, source);
+				// let [astnew, err] = walker.walk();
+				// // console.log(err)
+				// let ans = []
+				// err.forEach((err) => {
+				// 	console.log(err);
+				// 	let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
+				// 	ans.push(s + `${starter}<a style="color: red;">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `${i}`).join('\n')}</a>\n`);
+				// })
 
-				// console.log(ans)
-				if (ans.length > 0) {
-					document.getElementById('parser').innerHTML = ans.join('\n')
-				}
-				// document.getElementById('ast').innerText = JSON.stringify(astnew, null, 2)
+				// // console.log(ans)
+				// if (ans.length > 0) {
+				// 	document.getElementById('parser').innerHTML = ans.join('\n')
+				// }
+				// // document.getElementById('ast').innerText = JSON.stringify(astnew, null, 2)
 				document.getElementById('ast').innerText = JSON.stringify(ast[2][1], null, 2)
 			}
 			else
 				document.getElementById('ast').innerText = 'Error !'
-			let jsc = new SUN.JSConverter(ast[2][1])
-			jsc.convert()
-			ans = []
-			if (jsc.errors.length > 0) {
-				jsc.errors.forEach((err) => {
-					let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
-					ans.push(s + `<a style="color: red;">${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `<a style="color: red;">${i}</a>`).join('\n')}</a>\n`);
-				})
-				document.getElementById('count').innerHTML = ans.join('')
-			}
-			else
-				document.getElementById('count').innerText = "// Translated by sun sPARks" + '\n' + jsc.target
+			// let jsc = new SUN.JSConverter(ast[2][1])
+			// jsc.convert()
+			// ans = []
+			// if (jsc.errors.length > 0) {
+			// 	jsc.errors.forEach((err) => {
+			// 		let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
+			// 		ans.push(s + `<a style="color: red;">${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `<a style="color: red;">${i}</a>`).join('\n')}</a>\n`);
+			// 	})
+			// 	document.getElementById('count').innerHTML = ans.join('')
+			// }
+			// else
+			// 	document.getElementById('count').innerText = "// Translated by sun sPARks" + '\n' + jsc.target
 		}
 
 	}

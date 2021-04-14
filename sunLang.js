@@ -1302,61 +1302,61 @@ export class Skip extends Match {
 
 
 
-let TestLang = new Language("Test", {
-	"E": () => {
-		return new Match([
-			new MatchTerm("T"),
-			new MatchTerm("E\'")
-		])
-	},
-	"E'": () => {
-		return new Once_or_None([
-			new Match([
-				new MatchToken("+", "+"),
-				new MatchTerm("E")
-			])
-		])
-	},
-	'T': () => {
-		return new Match([
-			new MatchTerm("F"),
-			new MatchTerm("T\'")
-		])
-	},
-	'T\'': () => {
-		return new Once_or_None([
-			new MatchTerm("T")
-		])
-	},
-	'F': () => {
-		return new Match([
-			new MatchTerm("P"),
-			new MatchTerm("F\'")
-		])
-	},
-	'F\'': () => {
-		return new Once_or_None([
-			new Match([
-				new MatchToken("*", "*"),
-				new MatchTerm("F'")
-			])
-		])
-	},
-	'P': () => {
-		return new ChooseOne([
-			new MatchToken("a", "a"),
-			new MatchToken("b", "b"),
-			new MatchToken("U", "U"),
-			new Match([
-				new MatchToken("(", "("),
-				new MatchTerm("E"),
-				new MatchToken(")", ")")
-			])
-		])
-	}
-}, "E")
+// let TestLang = new Language("Test", {
+// 	"E": () => {
+// 		return new Match([
+// 			new MatchTerm("T"),
+// 			new MatchTerm("E\'")
+// 		])
+// 	},
+// 	"E'": () => {
+// 		return new Once_or_None([
+// 			new Match([
+// 				new MatchToken("+", "+"),
+// 				new MatchTerm("E")
+// 			])
+// 		])
+// 	},
+// 	'T': () => {
+// 		return new Match([
+// 			new MatchTerm("F"),
+// 			new MatchTerm("T\'")
+// 		])
+// 	},
+// 	'T\'': () => {
+// 		return new Once_or_None([
+// 			new MatchTerm("T")
+// 		])
+// 	},
+// 	'F': () => {
+// 		return new Match([
+// 			new MatchTerm("P"),
+// 			new MatchTerm("F\'")
+// 		])
+// 	},
+// 	'F\'': () => {
+// 		return new Once_or_None([
+// 			new Match([
+// 				new MatchToken("*", "*"),
+// 				new MatchTerm("F'")
+// 			])
+// 		])
+// 	},
+// 	'P': () => {
+// 		return new ChooseOne([
+// 			new MatchToken("a", "a"),
+// 			new MatchToken("b", "b"),
+// 			new MatchToken("U", "U"),
+// 			new Match([
+// 				new MatchToken("(", "("),
+// 				new MatchTerm("E"),
+// 				new MatchToken(")", ")")
+// 			])
+// 		])
+// 	}
+// }, "E")
 
-TestLang.print();
+// TestLang.print();
 
 // SPARK_registe('E', () => {
 // 	return new Match([
@@ -2039,6 +2039,118 @@ export const PL0 = function () {
 			})
 		}
 	}, "program");
+}
+
+export const BasicCalculator = function () {
+	return new Language("BasicCalculator", {
+		AddMinus: () => {
+			return new ChooseOne([
+				new MatchToken("TK_ADD", undefined, () => {
+					return ['op', { type: 'op', value: '+' }]
+				}),
+				new MatchToken("TK_MINUS", undefined, () => {
+					return ['op', { type: 'op', value: '-' }]
+				})
+			])
+		},
+		PlusDivide: () => {
+			return new ChooseOne([
+				new MatchToken("TK_MULTIPIY", undefined, () => {
+					return ['op', { type: 'op', value: '*' }]
+				}),
+				new MatchToken("TK_DIVIDE", undefined, () => {
+					return ['op', { type: 'op', value: '/' }]
+				})
+			])
+		},
+		Expression: () => {
+			return new Match([
+				new MatchTerm("Term"),
+				new MatchTerm("Expression$"),
+			], (match) => {
+				console.log(">> Expression", match.nodes)
+				if (match.nodes[1][1] === null) {
+					return match.nodes[0];
+				}
+				return ['binop', {
+					type: 'binop',
+					value: match.nodes[1][1].op.value,
+					a: match.nodes[0][1],
+					b: match.nodes[1][1].b,
+				}]
+			})
+		},
+		Expression$: () => {
+			return new Once_or_None([
+				new Match([
+					new MatchTerm("AddMinus"),
+					new MatchTerm("Term")
+				], (match) => {
+					console.log(">> Expression$", match.nodes)
+					return ['subop', {
+						type: 'subop',
+						op: match.nodes[0][1],
+						b: match.nodes[1][1]
+					}]
+				})
+			])
+		},
+		Term: () => {
+			return new Match([
+				new MatchTerm("Primary"),
+				new MatchTerm("Term$"),
+			], (match) => {
+				console.log(">> Term", match.nodes)
+				if (match.nodes[1][1] === null) {
+					return match.nodes[0];
+				}
+				return ['binop', {
+					type: 'binop',
+					value: match.nodes[1][1].op.value,
+					a: match.nodes[0][1],
+					b: match.nodes[1][1].b,
+				}]
+			})
+		},
+		Term$: () => {
+			return new Once_or_None([
+				new Match([
+					new MatchTerm("PlusDivide"),
+					new MatchTerm("Primary")
+				], (match) => {
+					console.log(">> Term$", match.nodes)
+					return ['subop', {
+						type: 'subop',
+						op: match.nodes[0][1],
+						b: match.nodes[1][1]
+					}]
+				})
+			])
+		},
+		Primary: () => {
+			return new ChooseOne([
+				new MatchTerm("Number"),
+				new Match([
+					new MatchToken("TK_LCIR"),
+					new MatchTerm("Expression"),
+					new MatchToken("TK_RCIR")
+				], (match) => {
+					console.log(">> Primary", match.nodes)
+					return match.nodes[0]
+				})
+			])
+		},
+		Number: () => {
+			return new ChooseOne([
+				new MatchToken("TK_INT", undefined, (match, token) => {
+					return ['value', { type: 'value', datatype: 'int', value: token.value }]
+				}),
+				new MatchToken("TK_FLOAT", undefined, (match, token) => {
+					return ['value', { type: 'value', datatype: 'float', value: token.value }]
+				})
+			])
+		}
+	}, "Expression")
 }
 
 Array.prototype.tab = function () {
