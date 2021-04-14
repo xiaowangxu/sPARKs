@@ -7,19 +7,40 @@ demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，�
 
 ---
 **2021/4/6 _更新_：现支持求解FIRST/FOLLOW集**
+
 **2021/4/9 _更新_：基于Walker/Collect/Transform的静态分析和AST变换**
-**2021/4/12 _更新_：新增```Language```语言类, 接口大改**
+
+**2021/4/12 _更新_：新增 ```Language``` 语言类, 接口大改**
+
+**2012/4/13 _更新_：```Language``` 重构PL0语言，调用 ```PL0()``` 即可获得一个PL0分析器**
+
+**2012/4/14 _更新_：新增 ```BasicCalculator``` 简单公式分析语言**
 
 -----
 ### 包含
-- ```SourceScript``` 源代码输入，提供```get/peek```方法，同时配合```ScriptPosition```可输出源代码的指定位置并高亮
+- ```SourceScript``` 源代码输入，提供 ```get / peek``` 方法，同时配合 ```ScriptPosition``` 可输出源代码的指定位置并高亮
 - ```ScriptPosition``` 指出源码中的一段
-- ```Lexer``` 一个简单的词法分析器，和相关类库（```BaseError```/```Token```）
+- ```Lexer``` 一个简单的词法分析器，和相关类库（```BaseError``` / ```Token```）
 - ```sPARks``` 递归下降语法解析
 - ```JSConverter``` PL/0 AST 到 JavaScript 翻译器
 
 ----
 ### 基本使用
+
+#### 使用内置语言实现
+```js
+// 内建了PL0/BasicCalculator的语言
+let BasicCalcutor = BasicCalcutor();
+
+let source = new SourceScript("1+(2*3.14)/(233+12)", "Test script");
+
+let lexer = new Lexer(source);
+lexer.tokenize();
+
+let [finished, fin_index, ast, error, error_index] = BasicCalcutor.match(lexer.tokens);
+```
+
+#### 自定义语言
 ```js
 // 条件语句 ::= if <条件表达式> then <语句> [ (else <语句>) ]
 let ebnf = {'条件语句': () => {
@@ -60,7 +81,7 @@ if a < b then
 else
 	max := b
 `, 
-"Test sript");
+"Test script");
 
 let lexer = new Lexer(source);
 lexer.tokenize();
@@ -81,8 +102,8 @@ let [finished, fin_index, ast, error, error_index] = TestLang.match(lexer.tokens
 ---
 ### **未来进度：**
 sPARks
-- [x] AST的 start / end 替换为```ScriptPosition```
-- [x] 新增```Language```语言类
+- [x] AST的 start / end 替换为 ```ScriptPosition```
+- [x] 新增 ```Language``` 语言类
 - [x] More_or_None 的错误提示
 - [x] 左递归检查
 - [x] 默认AST格式 // 实验特性，可作为文法测试使用，实际中请手动实现
