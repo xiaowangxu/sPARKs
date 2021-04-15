@@ -45,11 +45,11 @@ export class SourceScript {
 		return this.script[this.current];
 	}
 
-	peek() {
-		if (this.current + 1 >= this.length) {
+	peek(n = 1) {
+		if (this.current + n >= this.length) {
 			return '\0';
 		}
-		return this.script[this.current + 1];
+		return this.script[this.current + n];
 	}
 
 	is_EOF() {
@@ -247,8 +247,8 @@ export class Lexer {
 			this.current_pos.newline();
 	}
 
-	peek() {
-		return this.sourcescript.peek();
+	peek(n = 1) {
+		return this.sourcescript.peek(n);
 	}
 
 	get_Number() {
@@ -259,6 +259,7 @@ export class Lexer {
 		while (!this.is_EOF() && (this.is_NumberChar(this.current) || this.current === '.')) {
 			position = this.current_pos.clone();
 			if (this.current === '.') {
+				if (!this.is_NumberChar(this.peek())) break;
 				if (dot_count === 1)
 					break;
 				dot_count++;
@@ -266,6 +267,10 @@ export class Lexer {
 			}
 			else {
 				number += this.current;
+			}
+			if (this.peek() === '.' && !this.is_NumberChar(this.peek(2))) {
+				this.advance();
+				break;
 			}
 			this.advance();
 		}
@@ -610,14 +615,6 @@ Array.prototype.union = function (arr, cmpfunc = TOKEN_CMP) {
 		if (!this.has(arr[i], cmpfunc)) this.push(arr[i]);
 	}
 	return this;
-}
-
-function get_Layer(c) {
-	let str = "";
-	for (let i = 0; i < c; i++) {
-		str += '++';
-	}
-	return str;
 }
 
 export class SPARK_Error {
@@ -1275,241 +1272,6 @@ export class Skip extends Match {
 	}
 }
 
-// Exp := a b c
-// let Calcu = new Language("CalcuLang", {
-// 	Sign: () => {
-// 		return new ChooseOne([
-// 			new MatchToken('TK_ADD', undefined),
-// 			new MatchToken('TK_MINUS', undefined)
-// 		])
-// 	},
-// 	Exp: () => {
-// 		return new Match([
-// 			new MatchTerm('Exp'),
-// 			new More_or_None([
-// 				new MatchTerm('Sign')
-// 			])
-// 		])
-// 	}
-// }, "Exp")
-
-// Calcu.print()
-
-// let source = new SourceScript("+/+++--++-", "terminal");
-// let lexer = new Lexer(source);
-// lexer.tokenize();
-// console.log(Calcu.match(lexer.tokens))
-
-
-
-// let TestLang = new Language("Test", {
-// 	"E": () => {
-// 		return new Match([
-// 			new MatchTerm("T"),
-// 			new MatchTerm("E\'")
-// 		])
-// 	},
-// 	"E'": () => {
-// 		return new Once_or_None([
-// 			new Match([
-// 				new MatchToken("+", "+"),
-// 				new MatchTerm("E")
-// 			])
-// 		])
-// 	},
-// 	'T': () => {
-// 		return new Match([
-// 			new MatchTerm("F"),
-// 			new MatchTerm("T\'")
-// 		])
-// 	},
-// 	'T\'': () => {
-// 		return new Once_or_None([
-// 			new MatchTerm("T")
-// 		])
-// 	},
-// 	'F': () => {
-// 		return new Match([
-// 			new MatchTerm("P"),
-// 			new MatchTerm("F\'")
-// 		])
-// 	},
-// 	'F\'': () => {
-// 		return new Once_or_None([
-// 			new Match([
-// 				new MatchToken("*", "*"),
-// 				new MatchTerm("F'")
-// 			])
-// 		])
-// 	},
-// 	'P': () => {
-// 		return new ChooseOne([
-// 			new MatchToken("a", "a"),
-// 			new MatchToken("b", "b"),
-// 			new MatchToken("U", "U"),
-// 			new Match([
-// 				new MatchToken("(", "("),
-// 				new MatchTerm("E"),
-// 				new MatchToken(")", ")")
-// 			])
-// 		])
-// 	}
-// }, "E")
-
-// TestLang.print();
-
-// SPARK_registe('E', () => {
-// 	return new Match([
-// 		new MatchTerm("T"),
-// 		new MatchTerm("E\'")
-// 	])
-// })
-
-// SPARK_registe('E\'', () => {
-// 	return new Once_or_None([
-// 		new Match([
-// 			new MatchToken("+", "+"),
-// 			new MatchTerm("E")
-// 		])
-// 	])
-// })
-
-// SPARK_registe('T', () => {
-// 	return new Match([
-// 		new MatchTerm("F"),
-// 		new MatchTerm("T\'")
-// 	])
-// })
-
-// SPARK_registe('T\'', () => {
-// 	return new Once_or_None([
-// 		new MatchTerm("T")
-// 	])
-// })
-
-// SPARK_registe('F', () => {
-// 	return new Match([
-// 		new MatchTerm("P"),
-// 		new MatchTerm("F\'")
-// 	])
-// })
-
-// SPARK_registe('F\'', () => {
-// 	return new Once_or_None([
-// 		new Match([
-// 			new MatchToken("*", "*"),
-// 			new MatchTerm("F'")
-// 		])
-// 	])
-// })
-
-// SPARK_registe('P', () => {
-// 	return new ChooseOne([
-// 		new MatchToken("a", "a"),
-// 		new MatchToken("b", "b"),
-// 		new MatchToken("U", "U"),
-// 		new Match([
-// 			new MatchToken("(", "("),
-// 			new MatchTerm("E"),
-// 			new MatchToken(")", ")")
-// 		])
-// 	])
-// })
-
-
-// SPARK_registe('S', () => {
-// 	return new ChooseOne([
-// 		new Match([
-// 			new MatchToken("b", "b"),
-// 			new MatchTerm("C")
-// 		]),
-// 		new Match([
-// 			new MatchTerm("A"),
-// 			new MatchTerm("B")
-// 		])
-// 	])
-// })
-
-// SPARK_registe('A', () => {
-// 	return new Once_or_None([
-// 		new MatchToken('b', 'b')
-// 	])
-// })
-
-// SPARK_registe('B', () => {
-// 	return new Once_or_None([
-// 		new Match([
-// 			new MatchToken("a", "a"),
-// 			new MatchTerm("D")
-// 		])
-// 	])
-// })
-
-// SPARK_registe('C', () => {
-// 	return new ChooseOne([
-// 		new MatchToken("b", "b"),
-// 		new Match([
-// 			new MatchTerm("A"),
-// 			new MatchTerm("D")
-// 		])
-// 	])
-// })
-
-// SPARK_registe('D', () => {
-// 	return new ChooseOne([
-// 		new MatchToken("c", "c"),
-// 		new Match([
-// 			new MatchToken("a", "a"),
-// 			new MatchTerm("S")
-// 		])
-// 	])
-// })
-
-// SPARK_registe('E', () => {
-// 	return new Match([
-// 		new MatchTerm("T"),
-// 		new MatchTerm("E\'")
-// 	])
-// })
-
-// SPARK_registe('E\'', () => {
-// 	return new Once_or_None([
-// 		new Match([
-// 			new MatchToken("+", "+"),
-// 			new MatchTerm("T"),
-// 			new MatchTerm("E\'")
-// 		])
-// 	])
-// })
-
-// SPARK_registe('T', () => {
-// 	return new Match([
-// 		new MatchTerm("F"),
-// 		new MatchTerm("T\'")
-// 	])
-// })
-
-// SPARK_registe('T\'', () => {
-// 	return new Once_or_None([
-// 		new Match([
-// 			new MatchToken("*", "*"),
-// 			new MatchTerm("F"),
-// 			new MatchTerm("T\'")
-// 		])
-// 	])
-// })
-
-// SPARK_registe('F', () => {
-// 	return new ChooseOne([
-// 		new MatchToken("i", "i"),
-// 		new Match([
-// 			new MatchToken("(", "("),
-// 			new MatchTerm("E"),
-// 			new MatchToken(")", ")")
-// 		])
-// 	])
-// })
-
 export const PL0 = function () {
 	return new Language("PL/0", {
 		'constdef': () => {
@@ -2157,7 +1919,7 @@ Array.prototype.tab = function () {
 	return this.join("\n").split('\n').map((i) => "    " + i).join('\n')
 }
 
-// walker
+// Walker
 export const PL0Visitors = {
 	subprogram: {
 		walk(node, path) {
