@@ -588,6 +588,235 @@ export class Lexer {
 	}
 }
 
+Set.prototype.intersect = function (a) {
+	return new Set([...a].filter(x => this.has(x)));
+}
+
+Set.prototype.difference = function (a) {
+	return new Set([...a].filter(x => !this.has(x)));
+}
+
+Set.prototype.equal = function (a) {
+	return this.difference(a).size === 0 && a.difference(this).size === 0;
+}
+
+Array.prototype.in = function (a) {
+	for (let idx = 0; idx < this.length; idx++) {
+		if (this[idx].equal(a)) return idx;
+	}
+	return -1;
+}
+// DFA
+export class DFA {
+	constructor(start, transform, end) {
+		this.path = {
+
+		};
+		this.accept = new Set();
+		this.start = new Set(start);
+		this.end = new Set(end);
+		this.states = new Set([...this.start, ...this.end]);
+		transform.forEach((t) => {
+			this.states.add(t[0]);
+			if (this.path[t[0]] === undefined) {
+				this.path[t[0]] = {};
+			}
+			t[1].forEach((i) => {
+				if (i[0] !== '$') this.accept.add(i[0]);
+				if (this.path[t[0]][i[0]] === undefined) {
+					this.path[t[0]][i[0]] = [i[1]];
+				}
+				else {
+					this.path[t[0]][i[0]].push(i[1]);
+				}
+			})
+		})
+	}
+
+	$_closure(node) {
+		let ans = new Set;
+		let nodes;
+		if (node instanceof Set || node instanceof Array) {
+			nodes = [...node];
+		}
+		else {
+			nodes = [node];
+		}
+		nodes.forEach(i => ans.add(i));
+		let tested = new Set;
+		while (nodes.length > 0) {
+			let n = nodes.pop();
+			tested.add(n);
+			if (this.path[n] !== undefined) {
+				if (this.path[n]['$'] !== undefined) {
+					this.path[n]['$'].forEach((i) => {
+						ans.add(i);
+						if (!tested.has(i)) {
+							nodes.push(i);
+						}
+					})
+				}
+			}
+		}
+		return ans;
+	}
+
+	move(node, move) {
+		let ans = new Set;
+		let nodes;
+		if (node instanceof Set || node instanceof Array) {
+			nodes = [...node];
+		}
+		else {
+			nodes = [node];
+		}
+		nodes.forEach((n) => {
+			if (this.path[n] !== undefined) {
+				if (this.path[n][move] !== undefined) {
+					this.path[n][move].forEach((i) => {
+						ans.add(i);
+					})
+				}
+			}
+		})
+		return ans;
+	}
+
+	states() {
+		let mid = [];
+		for (let key in this.path) {
+			mid.push(key);
+		}
+		return Array.from(new Set([...this.start, ...mid, ...this.end]));
+	}
+
+	// is_Deterministic() {
+	// 	if (this.start.length > 1) return false;
+	// 	let ans = true;
+	// 	this.path.forEach((p)=>{
+	// 		p
+	// 	})
+	// }
+
+	toString() {
+		let str = "graph LR;\n";
+		this.end.forEach((s) => {
+			str += `  ${s}((${s}))\n`;
+		})
+		for (let key in this.path) {
+			for (let a in this.path[key]) {
+				this.path[key][a].forEach((to) => {
+					str += `  ${key}--${a === '$' ? 'ɛ' : a}-->${to}\n`
+				})
+			}
+		}
+		str += '  $Start((Start))\n';
+		this.start.forEach((s) => {
+			str += `  $Start-->${s}\n`;
+		})
+
+		return str;
+	}
+
+	regulate() {
+		let table = [this.$_closure(this.start)];
+		let count = 0;
+		let accept = {};
+		for (let i of this.accept) {
+			accept[i] = []
+		}
+		while (count < table.length && count < 100) {
+			for (let i of this.accept) {
+				let closure = this.$_closure(this.move(table[count], i));
+				// console.log(table, closure)
+				let idx = table.in(closure);
+				// console.log(idx);
+				if (idx === -1) {
+					table.push(closure);
+					accept[i].push(table.length - 1);
+				}
+				else
+					accept[i].push(idx);
+			}
+			count++;
+		}
+		let start = new Set([0]);
+		let transform = [];
+		let end = new Set;
+		table.forEach((s, i) => {
+			let path = [];
+			this.end.forEach(e => {
+				if (s.has(e))
+					end.add(i);
+			})
+			this.accept.forEach(a => {
+				path.push([a, accept[a][i]])
+			})
+			transform.push([i, path]);
+		})
+		console.log(transform)
+		this.start = start;
+		this.end = end;
+		this.path = {};
+		this.states = new Set([...this.start, ...this.end]);
+		transform.forEach((t) => {
+			this.states.add(t[0]);
+			if (this.path[t[0]] === undefined) {
+				this.path[t[0]] = {};
+			}
+			t[1].forEach((i) => {
+				if (i[0] !== '$') this.accept.add(i[0]);
+				if (this.path[t[0]][i[0]] === undefined) {
+					this.path[t[0]][i[0]] = [i[1]];
+				}
+				else {
+					this.path[t[0]][i[0]].push(i[1]);
+				}
+			})
+		})
+	}
+}
+
+let a = new DFA([0], [
+	[0, [
+		['$', 1],
+		['$', 7]
+	]],
+	[1, [
+		['$', 2],
+		['$', 4]
+	]],
+	[2, [
+		['a', 3]
+	]],
+	[4, [
+		['b', 5]
+	]],
+	[3, [
+		['$', 6]
+	]],
+	[5, [
+		['$', 6]
+	]],
+	[6, [
+		['$', 7],
+		['$', 1]
+	]],
+	[7, [
+		['a', 8]
+	]],
+	[8, [
+		['b', 9]
+	]],
+	[9, [
+		['b', 10]
+	]]
+], [10])
+// a.regulate();
+console.log(a.toString());
+
+
+
 // sPARks
 const TOKEN_CMP = (a, b) => {
 	return a.equal(b)
