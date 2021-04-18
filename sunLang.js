@@ -606,6 +606,7 @@ Array.prototype.in = function (a) {
 	}
 	return -1;
 }
+
 // DFA
 export class DFA {
 	constructor(start, transform, end) {
@@ -776,46 +777,6 @@ export class DFA {
 		})
 	}
 }
-
-let a = new DFA([0], [
-	[0, [
-		['$', 1],
-		['$', 7]
-	]],
-	[1, [
-		['$', 2],
-		['$', 4]
-	]],
-	[2, [
-		['a', 3]
-	]],
-	[4, [
-		['b', 5]
-	]],
-	[3, [
-		['$', 6]
-	]],
-	[5, [
-		['$', 6]
-	]],
-	[6, [
-		['$', 7],
-		['$', 1]
-	]],
-	[7, [
-		['a', 8]
-	]],
-	[8, [
-		['b', 9]
-	]],
-	[9, [
-		['b', 10]
-	]]
-], [10])
-// a.regulate();
-console.log(a.toString());
-
-
 
 // sPARks
 const TOKEN_CMP = (a, b) => {
@@ -2754,5 +2715,19 @@ export class JSConverter {
 	convert() {
 		this.target = "let $writebuffer = '';\n" + this[this.ast.type](this.ast) + "\n($writebuffer);";
 		return this.target;
+	}
+}
+
+// VM
+export class SSIR {
+	constructor() {
+
+	}
+}
+
+export class SSVM {
+	constructor() {
+		this.memory = [];
+
 	}
 }
