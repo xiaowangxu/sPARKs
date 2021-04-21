@@ -1802,6 +1802,7 @@ export const PL0 = function () {
 						new MatchToken("TK_KEYWORD", "else"),
 						new MatchTerm('statment')
 					], (match, token) => {
+						if (match.nodes[0][1] === null) return undefined
 						return match.nodes[0]
 					})
 				], true)
@@ -1810,7 +1811,7 @@ export const PL0 = function () {
 					type: 'if',
 					expression: match.nodes[0][1],
 					sub: [match.nodes[1][1]],
-					else: [match.nodes[2][1]]
+					else: [match.nodes[2] === undefined ? null : match.nodes[2][1]]
 				}]
 			})
 		},
@@ -2673,7 +2674,6 @@ export class JSConverter {
 	}
 
 	subprogram(ast) {
-		this.new_Scope();
 		let that = this;
 		let consts = ast.consts;
 		let arr = []
@@ -2714,6 +2714,175 @@ export class JSConverter {
 
 	convert() {
 		this.target = "let $writebuffer = '';\n" + this[this.ast.type](this.ast) + "\n($writebuffer);";
+		return this.target;
+	}
+}
+
+export class SSIRConverter {
+	constructor(ast) {
+		this.ast = ast;
+		this.target = '';
+		this.errors = [];
+		this.uid = BigInt(0);
+		this.ir = [];
+	}
+
+	get_uid() {
+		return this.uid++;
+	}
+
+	exp(ast, last = null) {
+		// console.log(ast)
+		if (ast.type === 'value') {
+			let tmp = `$x_${this.get_uid()}`;
+			this.ir.push(`mov\t${tmp}\t${ast.value}`);
+			return tmp;
+		}
+		else if (ast.type === 'funccall') {
+			const MAP = {
+				print: (args, raw) => { `console.log(${args})` },
+				range: (args, raw) => {
+					let uid = this.get_uid()
+					return `(()=>{let arr${uid} = [];for (let i = 1; i <= ${args}; i++) {arr${uid}.push(i)};return arr${uid}})()`
+				}
+			}
+			let args = ast.arguments.map(i => this.exp(i)).join(", ")
+			let func = this.exp(ast.identifier)
+			return MAP[func] !== undefined ? MAP[func](args, ast.arguments) : `${func}(${args})`
+		}
+		else if (ast.type === 'identifier') {
+			return ast.value
+		}
+		else if (ast.type === 'binop') {
+			let tmp = `$x_${this.get_uid()}`;
+			this.ir.push(`${ast.value}\t${tmp}\t${this.exp(ast.sub[0], ast.value)}\t${this.exp(ast.sub[1], ast.value)}`);
+			return tmp;
+		}
+		else if (ast.type === 'uniop') {
+			return `${ast.value !== last && last !== null ? '(' : ''}${ast.value}${this.exp(ast.sub[0], ast.value)}${ast.value !== last && last !== null ? ')' : ''}`
+		}
+		else if (ast.type === 'array') {
+			let items = ast.expressions.map(i => this.exp(i)).join(', ')
+			return `[${items}]`
+		}
+		else if (ast.type === 'indexof') {
+			return `${ast.identifier}[${this.exp(ast.index)}]`
+		}
+	}
+
+	funcdef(ast, func = true) {
+		let identifier = ast.identifier
+		let body = this.subprogram(ast.block).split('\n').tab()
+		return `function ${identifier.identifier}() {\n${body}\n}`
+	}
+
+	call(ast) {
+		// console.log(ast)
+		return `${ast.identifier.value}();`
+	}
+
+	assign(ast) {
+		this.ir.push(`mov\t${ast.identifier.value}\t${this.exp(ast.expression)};`)
+	}
+
+	identifier(ast) {
+		return ast.value
+	}
+
+	write(ast) {
+		let arr = ast.expressions.map(s => this.get(s))
+		arr = arr.map(a => "${" + a + "}").join(" ")
+		return `$writebuffer += \`${arr}\\n\`;`
+	}
+
+	value(ast) {
+		switch (ast.datatype) {
+			case 'string': return `"${ast.value}"`;
+			default: return `BigInt("${ast.value}")`;
+		}
+	}
+
+	indexof(ast) {
+		return `${ast.identifier}[${this.exp(ast.index)}]`
+	}
+
+	read(ast) {
+		let arr = []
+		let identifier = ast.identifiers
+		identifier.forEach((i) => {
+			arr.push(`${i} = BigInt(prompt("请输入：${i}"))`)
+		})
+		return `${arr.join('\n')}`
+	}
+
+	block(ast) {
+		let arr = ast.statments.map(s => this.get(s)).tab()
+		return `{\n${arr}\n}`
+	}
+
+	binop(ast, last = null) {
+		return `(${this.exp(ast.sub[0], ast.value)}${ast.value}${this.exp(ast.sub[1], ast.value)})`
+	}
+
+	uniop(ast, last = null) {
+		return `(${ast.value}${this.exp(ast.sub[0], ast.value)})}`
+	}
+
+	if(ast) {
+		let tag = `IF_${this.get_uid()}`;
+		let flag = this.exp(ast.expression);
+		// let ifbody = ast.sub.filter((i) => i !== null).map(s => this.get(s)).tab()
+		// let elsebody = ast.else.filter((i) => i !== null).map(s => this.get(s)).tab()
+		this.ir.push(`jz\t${flag}\t${tag}_ELSE`)
+		ast.sub.filter((i) => i !== null).map(s => this.get(s))
+		this.ir.push(`jmp\t${tag}_END`)
+		this.ir.push(`${tag}_ELSE:`)
+		ast.else.filter((i) => i !== null).map(s => this.get(s))
+		this.ir.push(`${tag}_END:`)
+	}
+
+	while(ast) {
+		let ifbody = ast.sub.filter((i) => i !== null).map(s => this.get(s)).tab()
+		return `while (${this.exp(ast.expression)}) {\n${ifbody}\n}`
+	}
+
+	subprogram(ast) {
+		let ir = this.ir;
+		let that = this;
+		let consts = ast.consts;
+		let arr = []
+		let constdefs = consts.forEach((s) => {
+			s.consts.forEach((c) => {
+				arr.push(`const ${c.identifier} = ${this.exp(c.value)};`)
+			})
+		})
+		let vars = ast.vars;
+		let vardefs = vars.forEach((s) => {
+			s.vars.forEach((c) => {
+				console.log(">>>>>")
+				ir.push(`alc\t${c.identifier}`)
+				if (c.default !== null)
+					ir.push(`mov\ta\t${this.exp(c.default)}`)
+			})
+		})
+		let procs = ast.procs;
+		let procdefs = procs.forEach((s) => {
+			arr.push(this.funcdef(s))
+		})
+		if (ast.subs !== null) {
+			let subs = ast.subs;
+			arr.push(this.get(subs))
+		}
+		return `${arr.join('\n')}`;
+	}
+
+	get(s) {
+		return this[s.type] ? this[s.type](s) : 'unknown node'
+	}
+
+	convert() {
+		this[this.ast.type](this.ast);
+		this.target = this.ir.join("\n");
 		return this.target;
 	}
 }

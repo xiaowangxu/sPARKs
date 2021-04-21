@@ -17,7 +17,7 @@ margin: 0px; padding: 2px 10px 10px 10px;">
 var a : int[3], b : int = a[1] + "";.
 </textarea>
 		<div style="display: flex;flex-direction: row; justify-content: space-between; padding-right: 12px;">
-			<h3 style="margin: 0px 12px;font-family: consolas;">JavaScript</h3>
+			<h3 style="margin: 0px 12px;font-family: consolas;">SSIR</h3>
 			<button onclick="test()" style="font-family: consolas;">Run Code</button>
 		</div>
 		<pre style="flex:1;background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; font-family: consolas; overflow-y: auto; color: white; box-sizing: border-box;"
@@ -91,6 +91,9 @@ var a : int[3], b : int = a[1] + "";.
 			ans.push(s + `${starter}<a style="color: red;">${e.type} ${e.message}</a>\n`);
 			// ans.push(e.type + ' : ' + e.message + "\n" + source.get_ScriptPortion(e.start, e.end, '^', 'red')[0]);
 		})
+
+		console.log(lexer.tokens)
+
 		lexer.tokens.forEach(t => {
 			ans.push(source.get_ScriptPortion(t.start, t.end, undefined, "rgb(0,255,0)", false)[0] + ` (${t.type}, '${t.value}')` + '\n');
 		})
@@ -135,7 +138,7 @@ var a : int[3], b : int = a[1] + "";.
 			}
 			else
 				document.getElementById('ast').innerText = 'Error !'
-			let jsc = new SUN.JSConverter(ast[2][1])
+			let jsc = new SUN.SSIRConverter(ast[2][1])
 			jsc.convert()
 			ans = []
 			if (jsc.errors.length > 0) {
@@ -183,6 +186,110 @@ var a : int[3], b : int = a[1] + "";.
 	// SUN.SPARK_print();
 	// console.log(SUN.SPARK_get_First());
 	// console.log(SUN.SPARK_get_Empty());
+	let text = (`4 : 29 : 29
+15 : 95 : 95
+15 : 96 : 191
+10 : 65 : 65
+10 : 66 : 131
+13 : 83 : 83
+13 : 84 : 167
+7 : 47 : 47
+7 : 48 : 95
+7 : 49 : 144
+7 : 50 : 194
+7 : 51 : 245
+7 : 52 : 297
+15 : 97 : 288
+15 : 98 : 386
+15 : 99 : 485
+15 : 100 : 585
+10 : 67 : 198
+10 : 68 : 266
+10 : 69 : 335
+10 : 70 : 405
+13 : 85 : 252
+13 : 86 : 338
+13 : 87 : 425
+13 : 88 : 513
+11 : 71 : 71
+11 : 72 : 143
+11 : 73 : 216
+11 : 74 : 290
+11 : 75 : 365
+11 : 76 : 441
+2 : 15 : 15
+2 : 16 : 31
+2 : 17 : 48
+9 : 59 : 59
+9 : 60 : 119
+9 : 61 : 180
+9 : 62 : 242
+9 : 63 : 305
+9 : 64 : 369
+12 : 77 : 77
+12 : 78 : 155
+12 : 79 : 234
+12 : 80 : 314
+2 : 18 : 66
+2 : 19 : 85
+2 : 20 : 105
+2 : 21 : 126
+0 : 1 : 1
+0 : 2 : 3
+0 : 3 : 6
+0 : 4 : 10
+0 : 5 : 15
+0 : 6 : 21
+0 : 7 : 28
+4 : 30 : 59
+4 : 31 : 90
+4 : 32 : 122
+4 : 33 : 155
+4 : 34 : 189
+1 : 8 : 8
+1 : 9 : 17
+6 : 41 : 41
+6 : 42 : 83
+6 : 43 : 126
+6 : 44 : 170
+6 : 45 : 215
+6 : 46 : 261
+1 : 10 : 27
+8 : 53 : 53
+8 : 54 : 107
+8 : 55 : 162
+8 : 56 : 218
+8 : 57 : 275
+8 : 58 : 333
+5 : 35 : 35
+5 : 36 : 71
+14 : 89 : 89
+14 : 90 : 179
+14 : 91 : 270
+14 : 92 : 362
+14 : 93 : 455
+14 : 94 : 549
+1 : 11 : 38
+1 : 12 : 50
+1 : 13 : 63
+1 : 14 : 77
+3 : 22 : 22
+3 : 23 : 45
+3 : 24 : 69
+3 : 25 : 94
+3 : 26 : 120
+3 : 27 : 147
+3 : 28 : 175
+5 : 37 : 108
+5 : 38 : 146
+5 : 39 : 185
+5 : 40 : 225
+12 : 81 : 395
+12 : 82 : 477`).split('\n').map((s) => { return s.split(" : ") })
+	text.sort((a, b) => {
+		return a[0] - b[0]
+	})
+	console.log(text)
 </script>
 
 </html>

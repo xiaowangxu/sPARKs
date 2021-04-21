@@ -120,7 +120,7 @@ sPARks
 在 https://xiaowangxu.github.io/sun/PL0/ 的改进
 - [x] 扩充PL/0语法，部分完成
 - [x] 语义分析 // 类型推导，AST上的静态优化，静态检查 // 进行中
-- [ ] 中间代码生成 SSA or 四元数
+- [x] 中间代码生成 SSA or 四元数 // SSIR 进行中
 - [ ] 中间代码优化
 - [ ] PL/0 虚拟机 基于AST 或 中间代码
 - [ ] 链接llvm后端 ？
