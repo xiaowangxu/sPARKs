@@ -726,11 +726,16 @@ export class DFA {
 		for (let i of this.accept) {
 			accept[i] = []
 		}
-		while (count < table.length && count < 100) {
+		while (count < table.length) {
 			for (let i of this.accept) {
 				let closure = this.$_closure(this.move(table[count], i));
 				// console.log(table, closure)
+				if (closure.size === 0) {
+					accept[i].push(-1);
+					continue;
+				}
 				let idx = table.in(closure);
+
 				// console.log(idx);
 				if (idx === -1) {
 					table.push(closure);
@@ -744,6 +749,7 @@ export class DFA {
 		let start = new Set([0]);
 		let transform = [];
 		let end = new Set;
+		console.log(accept)
 		table.forEach((s, i) => {
 			let path = [];
 			this.end.forEach(e => {
@@ -751,11 +757,11 @@ export class DFA {
 					end.add(i);
 			})
 			this.accept.forEach(a => {
+				if (accept[a][i] === -1) return
 				path.push([a, accept[a][i]])
 			})
 			transform.push([i, path]);
 		})
-		console.log(transform)
 		this.start = start;
 		this.end = end;
 		this.path = {};
@@ -777,6 +783,31 @@ export class DFA {
 		})
 	}
 }
+
+// let dfa = new DFA("A", [
+// 	["A", [[1, "B"]]],
+// 	["B", [[1, "C"], [1, "B"], [0, "B"]]],
+// 	["C", [[0, "D"]]],
+// 	["D", [[1, "E"]]]
+// ], "E")
+// let dfa = new DFA("0", [
+// 	["0", [['a', "0"],
+// 	['a', "1"],
+// 	['b', "1"]]],
+// 	["1", [["a", "0"]]]
+// ], "0")
+let dfa = new DFA("A", [
+	["A", [['$', "B"]]],
+	["B", [
+		['0', "B"],
+		['1', "B1"]
+	]],
+	["B1", [['0', "B"]]],
+	["B", [['$', "C"]]]
+], "C")
+console.log(dfa.toString())
+dfa.regulate();
+console.log(dfa.toString())
 
 // sPARks
 const TOKEN_CMP = (a, b) => {
@@ -821,15 +852,18 @@ export class Language {
 	constructor(name, bnf, starter) {
 		this.name = name;
 		this.starter = starter;
+		this.$PassChecking = true;
 		this.$Terms = {};
 		this.$First = {};
 		this.$Follow = {};
+		this.$Select = {};
 		this.$Empty = {};
 		for (let key in bnf) {
 			this.registe(key, bnf[key]);
 		}
 		this.check();
-		this.get_FollowSet(this.starter);
+		if (this.$PassChecking)
+			this.get_FollowSet(this.starter);
 	}
 	print() {
 		console.log(`Language ${this.name}`);
@@ -864,6 +898,7 @@ export class Language {
 				term.check(key, `   *${key}*`, undefined, this);
 			}
 			catch (err) {
+				this.$PassChecking = false;
 				console.error(err.message)
 			}
 		}
@@ -886,6 +921,7 @@ export class Language {
 			this.$Terms[term_name] = match;
 			this.$Follow[term_name] = [];
 			this.$First[term_name] = [];
+			this.$Select[term_name] = [];
 			this.$Empty[term_name] = false;
 		}
 	}
@@ -901,6 +937,7 @@ export class Language {
 	}
 
 	get_FirstSet() {
+		if (!this.$PassChecking) throw new Error(`<sPARks> error: language ${this.name}'s rules contains left recusion, please remove those rules and try again`)
 		let ans = {};
 		for (let key in this.$Terms) {
 			let a = [];
@@ -916,9 +953,7 @@ export class Language {
 	$get_Follow1(term) {
 		let ans = [];
 		for (let key in this.$Terms) {
-			if (key !== term) {
-				this.get(key).get_Follow(term, ans, undefined, this);
-			}
+			this.get(key).get_Follow(term, ans, undefined, this);
 		}
 		this.$Follow[term].union(ans);
 		return ans;
@@ -939,8 +974,9 @@ export class Language {
 	}
 
 	get_FollowSet(term) {
+		if (!this.$PassChecking) throw new Error(`<sPARks> error: language ${this.name}'s rules contains left recusion, please remove those rules and try again`)
 		this.get_FirstSet();
-		this.$Follow[term].add(new Token("$$", "$$"));
+		this.$Follow[term].add(new Token("$#", "$#"));
 		for (let key in this.$Terms) {
 			this.$get_Follow1(key);
 		}
@@ -950,6 +986,39 @@ export class Language {
 			for (let key in this.$Terms) {
 				let ans = this.$get_Follow2(key);
 				if (ans) change = true;
+			}
+		}
+	}
+
+	get_SelectSet() {
+		function $get_Select(match, term, l) {
+			let a = [];
+			if (!match.get_First(a, l)) {
+				a.union(l.$Follow[term])
+				return a;
+			}
+			else {
+				return a;
+			}
+		}
+
+		for (let key in this.$Terms) {
+			let term = this.get(key);
+			if (term instanceof ChooseOne) {
+				term.subs.forEach((t) => {
+					this.$Select[key].push({ term: t, set: $get_Select(t, key, this) })
+				})
+			}
+			else if (term instanceof Once_or_None || term instanceof More_or_None) {
+				if (term.subs instanceof ChooseOne) {
+					term.subs.subs.forEach((t) => {
+						this.$Select[key].push({ term: t, set: $get_Select(t, key, this) })
+					})
+				}
+				else {
+					this.$Select[key].push({ term: term.subs, set: $get_Select(term.subs, key, this) })
+				}
+				this.$Select[key].push({ term: new Skip(), set: this.$Follow[key] })
 			}
 		}
 	}
@@ -1039,7 +1108,7 @@ export class Match {
 
 	get_Follow(term, last = [], layer = 0, language) {
 		// console.log(last)
-		// console.log(get_Layer(layer), "In Match:", this.toString())
+		// console.log("In Match:", this.toString(), term)
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
 			let find = match.get_Follow(term, last, layer + 1, language);
@@ -1049,7 +1118,6 @@ export class Match {
 					return true;
 				}
 				else {
-					// console.log(get_Layer(layer), ">>>>>> add")
 					let ans = [];
 					this.subs[i + 1].get_First(ans, language);
 					last.union(ans);
@@ -1762,18 +1830,22 @@ export const PL0 = function () {
 			])
 		},
 
+		'states': () => {
+			return new ChooseOne([
+				new MatchTerm('assign'),
+				new MatchTerm('if'),
+				new MatchTerm('while'),
+				new MatchTerm('call'),
+				new MatchTerm('read'),
+				new MatchTerm('write'),
+				new MatchTerm('block'),
+				// new Skip()
+			])
+		},
+
 		'statment': () => {
 			return new Once_or_None([
-				new ChooseOne([
-					new MatchTerm('assign'),
-					new MatchTerm('if'),
-					new MatchTerm('while'),
-					new MatchTerm('call'),
-					new MatchTerm('read'),
-					new MatchTerm('write'),
-					new MatchTerm('block'),
-					// new Skip()
-				])
+				new MatchTerm("states")
 			])
 		},
 
@@ -2222,6 +2294,34 @@ export const PL0Visitors = {
 				return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nvariable <a style="color: rgb(0,255,0);">${path.node.identifier.value}</a> is type of ${typeToString(path.node.identifier.typedef)} \ntype of ${typeToString(path.node.expression.typedef)} is not compatible`, path.$start, path.$end)]
 			}
 			return path.node
+		}
+	},
+	array: {
+		walk: (node) => {
+			return ["expressions"];
+		},
+		transform: (path) => {
+			path.node.typedef = { type: 'arraytype', value: '$unknown', count: path.node.expressions.length };
+			let firsttype = path.node.expressions[0].typedef;
+			let remain = path.node.expressions.slice(1);
+			let pass = true;
+			for (let i = 0; i < remain.length; i++) {
+				if (!typeCheck(firsttype, remain[i].typedef)) {
+					pass = false;
+					break;
+				}
+			}
+			console.log(pass)
+			if (!pass) {
+				let reasons = path.node.expressions.map((s, i) => {
+					let [str, starter, end] = path.$sourcescript.get_ScriptPortion(s.$start, s.$end, "~", "yellow")
+					return str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">${typeToString(s.typedef)}</a>`
+				})
+				return [path.node, new BaseError("ArrayDefinitionError", `\n${reasons.join("\n")}\n\nan array can only contain value with the same type`, path.$start, path.$end)]
+			}
+			// console.log(pass, remain, path.node.expressions.length)
+			path.node.typedef.value = firsttype.value;
+			return path.node;
 		}
 	},
 	proc: {

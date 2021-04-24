@@ -11,7 +11,7 @@ box-sizing: border-box;
 margin: 0px; padding: 2px 10px 10px 10px;">
 
 	<div
-		style="overflow: hidden; height: 100%;width: 40%; min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
+		style="overflow: hidden; height: 100%;min-width: 20%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
 		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Coder</h3>
 		<textarea style="height: 70%;width: 100%;resize: vertical;  font-family: consolas; " id="input"># sPARks PL/0 Hello World !!
 var a : int[3], b : int = a[1] + "";.
@@ -27,23 +27,23 @@ var a : int[3], b : int = a[1] + "";.
 			id="console"></pre>
 	</div>
 	<div
-		style="overflow: hidden; height: 100%;width: 300px; min-width: 5%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
+		style="overflow: hidden; height: 100%;min-width: 5%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px">
 		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Lexer</h3>
 		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
 			id="tokens"></pre>
 	</div>
 	<div
-		style="overflow: hidden; height: 100%;width: 500px; min-width: 5%; max-width: 80%; resize: horizontal;  font-family: consolas; display: flex;flex-direction: column; gap: 10px; box-sizing: border-box;">
+		style="overflow: hidden; height: 100%; flex: 1; min-width: 5%; max-width: 80%; resize: none;  font-family: consolas; display: flex;flex-direction: column; gap: 10px; box-sizing: border-box;">
 		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">Parser</h3>
 		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
 			id="parser"></pre>
 	</div>
-	<div
+	<!-- <div
 		style="overflow: hidden; height: 100%;flex:1; min-width: 5%; max-width: 80%; font-family: consolas; display: flex;flex-direction: column; gap: 10px">
 		<h3 style="margin: 0px 12px; margin-top: 8px;font-family: consolas;">AST</h3>
 		<pre style="flex:1;width:100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow: auto; box-sizing: border-box;"
 			id="ast"></pre>
-	</div>
+	</div> -->
 	<!-- <pre style="flex: 1; width: 100%; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas;"
 		id="parser"></pre>
 	<pre style="flex:1; width: 100px; background-color: rgb(0, 0, 0); padding: 10px; margin: 0px; word-break: break-all; font-size: 12px; color: white; font-family: consolas; overflow-y: auto;"
@@ -72,6 +72,84 @@ var a : int[3], b : int = a[1] + "";.
 	let PL0 = SUN.PL0();
 	// console.log(PL0)
 	// PL0.print();
+
+	let A = new SUN.Language("A", {
+		S: () => {
+			return new SUN.ChooseOne([
+				new SUN.Match([
+					new SUN.MatchToken('a', "a"),
+					new SUN.MatchTerm('A')
+				]),
+				new SUN.MatchToken('d', 'd')
+			])
+		},
+
+		A: () => {
+			return new SUN.Once_or_None([
+				new SUN.Match([
+					new SUN.MatchToken('b', "b"),
+					new SUN.MatchTerm('A'),
+					new SUN.MatchTerm('S')
+				])
+			])
+		}
+
+	}, "S")
+
+
+	let B = new SUN.Language("S", {
+		'S': () => {
+			return new SUN.ChooseOne([
+				new SUN.Match([
+					new SUN.MatchToken("b", "b"),
+					new SUN.MatchTerm("C")
+				]),
+				new SUN.Match([
+					new SUN.MatchTerm("A"),
+					new SUN.MatchTerm("B")
+				])
+			])
+		},
+
+		'A': () => {
+			return new SUN.Once_or_None([
+				new SUN.MatchToken('b', 'b')
+			])
+		},
+
+		'B': () => {
+			return new SUN.Once_or_None([
+				new SUN.Match([
+					new SUN.MatchToken("a", "a"),
+					new SUN.MatchTerm("D")
+				])
+			])
+		},
+
+		'C': () => {
+			return new SUN.ChooseOne([
+				new SUN.MatchToken("b", "b"),
+				new SUN.Match([
+					new SUN.MatchTerm("A"),
+					new SUN.MatchTerm("D")
+				])
+			])
+		},
+
+		'D': () => {
+			return new SUN.ChooseOne([
+				new SUN.MatchToken("c", "c"),
+				new SUN.Match([
+					new SUN.MatchToken("a", "a"),
+					new SUN.MatchTerm("S")
+				])
+			])
+		}
+	}, "S")
+	// console.log(A)
+	// B.print();
+	B.get_SelectSet();
+	console.log(B)
 
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
@@ -112,9 +190,11 @@ var a : int[3], b : int = a[1] + "";.
 				ans.push(s + `${starter}<a style="color: red;">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `${i}`).join('\n')}</a>\n`);
 				err = err.last
 			}
+
+			ans = ans.reverse()
 			document.getElementById('parser').innerHTML = ans.join('\n')
 			document.getElementById('count').innerText = "no code translated"
-			document.getElementById('ast').innerText = 'Error !'
+			// document.getElementById('ast').innerText = 'Error !'
 		}
 		else {
 			document.getElementById('parser').innerHTML = '<a style="color: rgb(0,255,0);">OK</a>'
@@ -134,10 +214,10 @@ var a : int[3], b : int = a[1] + "";.
 					document.getElementById('parser').innerHTML = ans.join('\n')
 				}
 				// document.getElementById('ast').innerText = JSON.stringify(astnew, null, 2)
-				document.getElementById('ast').innerText = JSON.stringify(ast[2][1], null, 2)
+				// document.getElementById('ast').innerText = JSON.stringify(ast[2][1], null, 2)
 			}
-			else
-				document.getElementById('ast').innerText = 'Error !'
+			// else
+			// document.getElementById('ast').innerText = 'Error !'
 			let jsc = new SUN.SSIRConverter(ast[2][1])
 			jsc.convert()
 			ans = []
@@ -186,110 +266,7 @@ var a : int[3], b : int = a[1] + "";.
 	// SUN.SPARK_print();
 	// console.log(SUN.SPARK_get_First());
 	// console.log(SUN.SPARK_get_Empty());
-	let text = (`4 : 29 : 29
-15 : 95 : 95
-15 : 96 : 191
-10 : 65 : 65
-10 : 66 : 131
-13 : 83 : 83
-13 : 84 : 167
-7 : 47 : 47
-7 : 48 : 95
-7 : 49 : 144
-7 : 50 : 194
-7 : 51 : 245
-7 : 52 : 297
-15 : 97 : 288
-15 : 98 : 386
-15 : 99 : 485
-15 : 100 : 585
-10 : 67 : 198
-10 : 68 : 266
-10 : 69 : 335
-10 : 70 : 405
-13 : 85 : 252
-13 : 86 : 338
-13 : 87 : 425
-13 : 88 : 513
-11 : 71 : 71
-11 : 72 : 143
-11 : 73 : 216
-11 : 74 : 290
-11 : 75 : 365
-11 : 76 : 441
-2 : 15 : 15
-2 : 16 : 31
-2 : 17 : 48
-9 : 59 : 59
-9 : 60 : 119
-9 : 61 : 180
-9 : 62 : 242
-9 : 63 : 305
-9 : 64 : 369
-12 : 77 : 77
-12 : 78 : 155
-12 : 79 : 234
-12 : 80 : 314
-2 : 18 : 66
-2 : 19 : 85
-2 : 20 : 105
-2 : 21 : 126
-0 : 1 : 1
-0 : 2 : 3
-0 : 3 : 6
-0 : 4 : 10
-0 : 5 : 15
-0 : 6 : 21
-0 : 7 : 28
-4 : 30 : 59
-4 : 31 : 90
-4 : 32 : 122
-4 : 33 : 155
-4 : 34 : 189
-1 : 8 : 8
-1 : 9 : 17
-6 : 41 : 41
-6 : 42 : 83
-6 : 43 : 126
-6 : 44 : 170
-6 : 45 : 215
-6 : 46 : 261
-1 : 10 : 27
-8 : 53 : 53
-8 : 54 : 107
-8 : 55 : 162
-8 : 56 : 218
-8 : 57 : 275
-8 : 58 : 333
-5 : 35 : 35
-5 : 36 : 71
-14 : 89 : 89
-14 : 90 : 179
-14 : 91 : 270
-14 : 92 : 362
-14 : 93 : 455
-14 : 94 : 549
-1 : 11 : 38
-1 : 12 : 50
-1 : 13 : 63
-1 : 14 : 77
-3 : 22 : 22
-3 : 23 : 45
-3 : 24 : 69
-3 : 25 : 94
-3 : 26 : 120
-3 : 27 : 147
-3 : 28 : 175
-5 : 37 : 108
-5 : 38 : 146
-5 : 39 : 185
-5 : 40 : 225
-12 : 81 : 395
-12 : 82 : 477`).split('\n').map((s) => { return s.split(" : ") })
-	text.sort((a, b) => {
-		return a[0] - b[0]
-	})
-	console.log(text)
+
 </script>
 
 </html>
