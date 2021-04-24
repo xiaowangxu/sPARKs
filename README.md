@@ -5,6 +5,8 @@ by _SUN_
 
 demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，在AST上naive地翻译成JS代码使得PL/0程序可以大致运行：https://xiaowangxu.github.io/sun/PL0/
 
+> 思考和妥协后发现，在牺牲一定的语法整洁性的情况下是可以自动计算Select集的，因此将计算SelectSet作为实验功能，附加LL(1)检查和文法提示，也许提供LL(1)分析器是可行的了。
+
 ---
 **2021/4/6 _更新_：现支持求解FIRST/FOLLOW集**
 
@@ -113,6 +115,7 @@ sPARks
 - [ ] 更泛化的词法分析器
 - [x] 生成First集合
 - [x] 生成Follow集合 // 2021/4/6 通过书上的测试和自定义测试
+- [ ] 生成Select集合 // 进行中
 - [ ] 提供LL(1)分析器
 - [ ] LR分析器 ？
 - [ ] 提供范例语言sunLang
