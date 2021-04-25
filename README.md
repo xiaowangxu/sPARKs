@@ -1,5 +1,6 @@
 # **sPARks** / **sPARKs**
-by _SUN_
+
+**S**un **P**arser **K**it**S**
 
 #### 一个js编写的“递归下降”语法分析器
 
