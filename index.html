@@ -59,6 +59,7 @@ var a : int[3], b : int = a[1] + "";.
 </style>
 <script type="module">
 	import * as SUN from './sunLang.js';
+
 	var myCodeMirror = CodeMirror.fromTextArea(document.getElementById('input'), {
 		lineNumbers: true,
 		mode: "javascript"
@@ -67,89 +68,161 @@ var a : int[3], b : int = a[1] + "";.
 	myCodeMirror.on('change', (cm, obj) => {
 		window.input(cm.getValue())
 	})
+
+	// let PL0 = new SUN.Language("PL0 Calculator", {
+	// 	"S": () => {
+	// 		return new SUN.Match([
+	// 			new SUN.MatchTerm("表达式"),
+	// 			new SUN.MatchToken("TK_EOF")
+	// 		], (match) => {
+	// 			return match.nodes[0];
+	// 		})
+	// 	},
+	// 	"表达式": () => {
+	// 		return new SUN.Match([
+	// 			new SUN.Once_or_None([
+	// 				new SUN.MatchTerm("加法运算符")
+	// 			], true),
+	// 			new SUN.MatchTerm("项"),
+	// 			new SUN.More_or_None([
+	// 				new SUN.Match([
+	// 					new SUN.MatchTerm("加法运算符"),
+	// 					new SUN.MatchTerm("项")
+	// 				], () => {
+	// 					return ["more", { A: 12345 }]
+	// 				})
+	// 			], (match) => {
+	// 				console.log("more >>>>>", match.nodes)
+	// 				return ["mores", match.nodes]
+	// 			})
+	// 		], (match) => {
+	// 			console.log(">>>>>>>>>", match.nodes)
+	// 			return ["exp", { type: 'exp', a: match.nodes[0][1] }]
+	// 		})
+	// 	},
+	// 	"项": () => {
+	// 		return new SUN.Match([
+	// 			new SUN.MatchTerm("因子"),
+	// 			new SUN.More_or_None([
+	// 				new SUN.Match([
+	// 					new SUN.MatchTerm("乘法运算符"),
+	// 					new SUN.MatchTerm("因子")
+	// 				])
+	// 			])
+	// 		], () => {
+	// 			return ["term", { type: "term", value: 666 }]
+	// 		})
+	// 	},
+	// 	"因子": () => {
+	// 		return new SUN.ChooseOne([
+	// 			new SUN.MatchToken("TK_IDENTIFIER"),
+	// 			new SUN.MatchToken("TK_INT"),
+	// 			new SUN.Match([
+	// 				new SUN.MatchToken("TK_LCIR"),
+	// 				new SUN.MatchTerm("表达式"),
+	// 				new SUN.MatchToken("TK_RCIR")
+	// 			])
+	// 		])
+	// 	},
+	// 	"加法运算符": () => {
+	// 		return new SUN.ChooseOne([
+	// 			new SUN.MatchToken("TK_ADD", undefined, (match, token) => {
+	// 				return ["binop", { type: "binop", value: "+" }]
+	// 			}),
+	// 			new SUN.MatchToken("TK_MINUS", undefined, (match, token) => {
+	// 				return ["binop", { type: "binop", value: "-" }]
+	// 			})
+	// 		])
+	// 	},
+	// 	"乘法运算符": () => {
+	// 		return new SUN.ChooseOne([
+	// 			new SUN.MatchToken("TK_MULTIPIY"),
+	// 			new SUN.MatchToken("TK_DIVIDE")
+	// 		])
+	// 	}
+	// }, "S")
+	// console.log(PL0)
 	// import * as Data from './demo.sun';
 
-	let PL0 = SUN.PL0();
+	// let PL0 = SUN.PL0();
 	// console.log(PL0)
 	// PL0.print();
 
-	let A = new SUN.Language("A", {
-		S: () => {
-			return new SUN.ChooseOne([
-				new SUN.Match([
-					new SUN.MatchToken('a', "a"),
-					new SUN.MatchTerm('A')
-				]),
-				new SUN.MatchToken('d', 'd')
-			])
-		},
+	// let A = new SUN.Language("A", {
+	// 	S: () => {
+	// 		return new SUN.ChooseOne([
+	// 			new SUN.Match([
+	// 				new SUN.MatchToken('a', "a"),
+	// 				new SUN.MatchTerm('A')
+	// 			]),
+	// 			new SUN.MatchToken('d', 'd')
+	// 		])
+	// 	},
 
-		A: () => {
-			return new SUN.Once_or_None([
-				new SUN.Match([
-					new SUN.MatchToken('b', "b"),
-					new SUN.MatchTerm('A'),
-					new SUN.MatchTerm('S')
-				])
-			])
-		}
+	// 	A: () => {
+	// 		return new SUN.Once_or_None([
+	// 			new SUN.Match([
+	// 				new SUN.MatchToken('b', "b"),
+	// 				new SUN.MatchTerm('A'),
+	// 				new SUN.MatchTerm('S')
+	// 			])
+	// 		])
+	// 	}
 
-	}, "S")
+	// }, "S")
+	// let B = new SUN.Language("S", {
+	// 	'S': () => {
+	// 		return new SUN.ChooseOne([
+	// 			new SUN.Match([
+	// 				new SUN.MatchToken("b", "b"),
+	// 				new SUN.MatchTerm("C")
+	// 			]),
+	// 			new SUN.Match([
+	// 				new SUN.MatchTerm("A"),
+	// 				new SUN.MatchTerm("B")
+	// 			])
+	// 		])
+	// 	},
 
+	// 	'A': () => {
+	// 		return new SUN.Once_or_None([
+	// 			new SUN.MatchToken('b', 'b')
+	// 		])
+	// 	},
 
-	let B = new SUN.Language("S", {
-		'S': () => {
-			return new SUN.ChooseOne([
-				new SUN.Match([
-					new SUN.MatchToken("b", "b"),
-					new SUN.MatchTerm("C")
-				]),
-				new SUN.Match([
-					new SUN.MatchTerm("A"),
-					new SUN.MatchTerm("B")
-				])
-			])
-		},
+	// 	'B': () => {
+	// 		return new SUN.Once_or_None([
+	// 			new SUN.Match([
+	// 				new SUN.MatchToken("a", "a"),
+	// 				new SUN.MatchTerm("D")
+	// 			])
+	// 		])
+	// 	},
 
-		'A': () => {
-			return new SUN.Once_or_None([
-				new SUN.MatchToken('b', 'b')
-			])
-		},
+	// 	'C': () => {
+	// 		return new SUN.ChooseOne([
+	// 			new SUN.MatchToken("b", "b"),
+	// 			new SUN.Match([
+	// 				new SUN.MatchTerm("A"),
+	// 				new SUN.MatchTerm("D")
+	// 			])
+	// 		])
+	// 	},
 
-		'B': () => {
-			return new SUN.Once_or_None([
-				new SUN.Match([
-					new SUN.MatchToken("a", "a"),
-					new SUN.MatchTerm("D")
-				])
-			])
-		},
+	// 	'D': () => {
+	// 		return new SUN.ChooseOne([
+	// 			new SUN.MatchToken("c", "c"),
+	// 			new SUN.Match([
+	// 				new SUN.MatchToken("a", "a"),
+	// 				new SUN.MatchTerm("S")
+	// 			])
+	// 		])
+	// 	}
+	// }, "S")
+	// B.get_SelectSet();
+	// console.log(B)
 
-		'C': () => {
-			return new SUN.ChooseOne([
-				new SUN.MatchToken("b", "b"),
-				new SUN.Match([
-					new SUN.MatchTerm("A"),
-					new SUN.MatchTerm("D")
-				])
-			])
-		},
-
-		'D': () => {
-			return new SUN.ChooseOne([
-				new SUN.MatchToken("c", "c"),
-				new SUN.Match([
-					new SUN.MatchToken("a", "a"),
-					new SUN.MatchTerm("S")
-				])
-			])
-		}
-	}, "S")
-	// console.log(A)
-	// B.print();
-	B.get_SelectSet();
-	console.log(B)
+	let PL0 = SUN.PL0()
 
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
@@ -234,38 +307,6 @@ var a : int[3], b : int = a[1] + "";.
 
 	}
 
-	// 	window.input(`# sPARks PL/0 Hello World !!
-	// # 在这里键入PL/0 程序
-	// var n, i, j, c, sum;
-
-	// procedure fact;
-	//   begin
-	//     c := 1;
-	//     j := 1;
-	//     while j <=i do
-	//       begin
-	//         c := c*j;
-	//         j := j+1;
-	//       end
-	//   end
-	// ;
-
-	// begin
-	//   sum := 0;
-	//   read(n);
-	//   i := 1;
-	//   while i <= n do
-	//     begin
-	//       call fact;
-	//       sum := sum+c;
-	//       i := i+1;
-	//     end;
-	//   write(sum);
-	// end.`)
-
-	// SUN.SPARK_print();
-	// console.log(SUN.SPARK_get_First());
-	// console.log(SUN.SPARK_get_Empty());
 
 </script>
 

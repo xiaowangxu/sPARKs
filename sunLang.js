@@ -251,6 +251,8 @@ export class Lexer {
 		return this.sourcescript.peek(n);
 	}
 
+	// customize
+
 	get_Number() {
 		let number = "";
 		let dot_count = 0;
