@@ -179,11 +179,12 @@ export class Token {
 }
 
 export class BaseError {
-	constructor(type = "Error", msg = "", start, end) {
+	constructor(type = "Error", msg = "", start, end, info) {
 		this.type = type;
 		this.message = msg;
 		this.start = start.clone();
 		this.end = end.clone();
+		this.info = info;
 	}
 }
 
@@ -1851,9 +1852,33 @@ export const PL0 = function () {
 			])
 		},
 
+		'lvalue': () => {
+			return new Match([
+				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['value', { type: 'identifier', value: token.value }] }),
+				new Once_or_None([
+					new Match([
+						new MatchToken("TK_LSQR", undefined),
+						new MatchTerm('exp'),
+						new MatchToken("TK_RSQR", undefined)], (match, tokens) => {
+							return match.nodes[0]
+						})
+				], true)
+			], (match, token) => {
+				if (match.nodes[1][0] === 'null') {
+					return match.nodes[0]
+				}
+				// console.log(">>>>>>>", match.nodes)
+				return ['indexof', {
+					type: 'indexof',
+					identifier: match.nodes[0][1],
+					index: match.nodes[1][1]
+				}]
+			})
+		},
+
 		"assign": () => {
 			return new Match([
-				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
+				new MatchTerm("lvalue"),
 				new MatchToken("TK_BECOME", undefined),
 				new MatchTerm('exp')
 			], (match, token) => {
@@ -2235,8 +2260,8 @@ export const PL0Visitors = {
 	},
 	vardef: {
 		walk(node) {
-			// console.log(">>> vardef visitor walk func", node)
-			return ["default"]
+			// console.log(node.typedef)
+			return ["default", "typedef"]
 		},
 		transform(path) {
 			let iden = new Identifier(path.node.identifier, "var", path.node, path.node.typedef)
@@ -2253,6 +2278,17 @@ export const PL0Visitors = {
 					let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a>defined as <a style="color: yellow">${typeToString(path.node.typedef)}</a>` + '\n\n' + str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a>assigned with <a style="color: yellow">${typeToString(path.node.default.typedef)}</a>`
 					return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nvariable <a style="color: rgb(0,255,0);">${path.node.identifier}</a> is type of ${typeToString(path.node.typedef)}\nbut its default value is type of ${typeToString(path.node.default.typedef)} which is not compatible`, path.$start, path.$end)]
 				}
+			return path.node
+		}
+	},
+	arraytype: {
+		walk(node) { },
+		transform(path) {
+			if (path.node.count <= 1) {
+				// let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.$start, path.$end, "~", "yellow")
+				// let reason = str1
+				return [{ type: "type", value: path.node.value, $start: path.$start, $end: path.$end, $startpos: path.$startpos, $endpos: path.$endpos }, new BaseError("TypeCheckWarning", `size of an array should be bigger than 1\nthis will be assumed as <a style="color: rgb(0, 255,0);">${path.node.value}</a> type`, path.$start, path.$end, { color: 'orange' })]
+			}
 			return path.node
 		}
 	},
@@ -2444,6 +2480,17 @@ export const PL0Visitors = {
 				let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.identifier.typedef.$start, path.node.identifier.typedef.$end, "~", "yellow")
 				let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a>defined as <a style="color: yellow">${typeToString(path.node.identifier.typedef)}</a>`
 				return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nvariable <a style="color: rgb(0,255,0);">${path.node.identifier.value}</a> is type of ${typeToString(path.node.identifier.typedef)}, not array`, path.$start, path.$end)]
+			}
+			else if (path.node.index.typedef.type !== "type" || path.node.index.typedef.value !== 'int') {
+				let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.index.$start, path.node.index.$end, "~", "yellow")
+				let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a><a style="color: yellow">${typeToString(path.node.index.typedef)}</a>`
+				return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nindex of an array should be int`, path.$start, path.$end)]
+			}
+			else if (path.node.index.$immediate && (path.node.index.value < 0 || path.node.index.value >= path.node.identifier.typedef.count)) {
+				path.node.typedef = { type: 'type', value: path.node.identifier.typedef.value };
+				let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.index.$start, path.node.index.$end, "~", "yellow")
+				let reason = str1
+				return [path.node, new BaseError("TypeCheckError", `\n${reason}\nindex of an array should meet 0 <= index <= ${path.node.identifier.typedef.count - 1}`, path.$start, path.$end)]
 			}
 			else {
 				path.node.typedef = { type: 'type', value: path.node.identifier.typedef.value };

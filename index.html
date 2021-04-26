@@ -278,13 +278,14 @@ var a : int[3], b : int = a[1] + "";.
 				let ans = []
 				err.forEach((err) => {
 					console.log(err);
-					let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
-					ans.push(s + `${starter}<a style="color: red;">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `${i}`).join('\n')}</a>\n`);
+					let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', err.info === undefined ? "red" : err.info.color)
+					let len = starter.split('')
+					ans.push(`${len.slice(0, len.length - 2).map(() => " ").join('')}.\n` + s + `${starter}<a style="color: ${err.info === undefined ? "red" : err.info.color};">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `${i}`).join('\n')}</a>\n`);
 				})
 
 				// console.log(ans)
 				if (ans.length > 0) {
-					document.getElementById('parser').innerHTML = ans.join('\n')
+					document.getElementById('parser').innerHTML = ans.join('\n\n')
 				}
 				// document.getElementById('ast').innerText = JSON.stringify(astnew, null, 2)
 				// document.getElementById('ast').innerText = JSON.stringify(ast[2][1], null, 2)
