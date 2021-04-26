@@ -1,5 +1,6 @@
 # **sPARks** / **sPARKs**
-by _SUN_
+
+**S**un **P**arser **K**it**S**
 
 #### 一个js编写的“递归下降”语法分析器
 
@@ -19,6 +20,8 @@ demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，�
 **2012/4/14 _更新_：新增 ```BasicCalculator``` 简单公式分析语言**
 
 **2012/4/17 _更新_：新增 ```DFA``` 确定有限状态机 支持 ```NFA``` 到 ```DFA``` 的转换**
+
+**2012/4/24 _更新_：若文法是正规文法，可调用 ```get_SelectSet()``` 计算Select集**
 
 -----
 ### 包含
@@ -102,6 +105,8 @@ let [finished, fin_index, ast, error, error_index] = TestLang.match(lexer.tokens
 - 可随意手动介入的AST生成
 - 自动错误提示
 - 自动求解文法的First/Follow集
+- 自动求解正规文法的Select集
+- Walker Ast遍历转换
 
 ---
 ### **未来进度：**
@@ -112,12 +117,10 @@ sPARks
 - [x] 左递归检查
 - [x] 默认AST格式 // 实验特性，可作为文法测试使用，实际中请手动实现
 - [x] 更友好的错误提示
-- [ ] 更泛化的词法分析器
 - [x] 生成First集合
 - [x] 生成Follow集合 // 2021/4/6 通过书上的测试和自定义测试
-- [ ] 生成Select集合 // 进行中
+- [ ] 生成Select集合
 - [ ] 提供LL(1)分析器
-- [ ] LR分析器 ？
 - [ ] 提供范例语言sunLang
 
 在 https://xiaowangxu.github.io/sun/PL0/ 的改进
