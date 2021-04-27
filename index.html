@@ -69,160 +69,12 @@ var a : int[3], b : int = a[1] + "";.
 		window.input(cm.getValue())
 	})
 
-	// let PL0 = new SUN.Language("PL0 Calculator", {
-	// 	"S": () => {
-	// 		return new SUN.Match([
-	// 			new SUN.MatchTerm("表达式"),
-	// 			new SUN.MatchToken("TK_EOF")
-	// 		], (match) => {
-	// 			return match.nodes[0];
-	// 		})
-	// 	},
-	// 	"表达式": () => {
-	// 		return new SUN.Match([
-	// 			new SUN.Once_or_None([
-	// 				new SUN.MatchTerm("加法运算符")
-	// 			], true),
-	// 			new SUN.MatchTerm("项"),
-	// 			new SUN.More_or_None([
-	// 				new SUN.Match([
-	// 					new SUN.MatchTerm("加法运算符"),
-	// 					new SUN.MatchTerm("项")
-	// 				], () => {
-	// 					return ["more", { A: 12345 }]
-	// 				})
-	// 			], (match) => {
-	// 				console.log("more >>>>>", match.nodes)
-	// 				return ["mores", match.nodes]
-	// 			})
-	// 		], (match) => {
-	// 			console.log(">>>>>>>>>", match.nodes)
-	// 			return ["exp", { type: 'exp', a: match.nodes[0][1] }]
-	// 		})
-	// 	},
-	// 	"项": () => {
-	// 		return new SUN.Match([
-	// 			new SUN.MatchTerm("因子"),
-	// 			new SUN.More_or_None([
-	// 				new SUN.Match([
-	// 					new SUN.MatchTerm("乘法运算符"),
-	// 					new SUN.MatchTerm("因子")
-	// 				])
-	// 			])
-	// 		], () => {
-	// 			return ["term", { type: "term", value: 666 }]
-	// 		})
-	// 	},
-	// 	"因子": () => {
-	// 		return new SUN.ChooseOne([
-	// 			new SUN.MatchToken("TK_IDENTIFIER"),
-	// 			new SUN.MatchToken("TK_INT"),
-	// 			new SUN.Match([
-	// 				new SUN.MatchToken("TK_LCIR"),
-	// 				new SUN.MatchTerm("表达式"),
-	// 				new SUN.MatchToken("TK_RCIR")
-	// 			])
-	// 		])
-	// 	},
-	// 	"加法运算符": () => {
-	// 		return new SUN.ChooseOne([
-	// 			new SUN.MatchToken("TK_ADD", undefined, (match, token) => {
-	// 				return ["binop", { type: "binop", value: "+" }]
-	// 			}),
-	// 			new SUN.MatchToken("TK_MINUS", undefined, (match, token) => {
-	// 				return ["binop", { type: "binop", value: "-" }]
-	// 			})
-	// 		])
-	// 	},
-	// 	"乘法运算符": () => {
-	// 		return new SUN.ChooseOne([
-	// 			new SUN.MatchToken("TK_MULTIPIY"),
-	// 			new SUN.MatchToken("TK_DIVIDE")
-	// 		])
-	// 	}
-	// }, "S")
-	// console.log(PL0)
-	// import * as Data from './demo.sun';
-
-	// let PL0 = SUN.PL0();
-	// console.log(PL0)
-	// PL0.print();
-
-	// let A = new SUN.Language("A", {
-	// 	S: () => {
-	// 		return new SUN.ChooseOne([
-	// 			new SUN.Match([
-	// 				new SUN.MatchToken('a', "a"),
-	// 				new SUN.MatchTerm('A')
-	// 			]),
-	// 			new SUN.MatchToken('d', 'd')
-	// 		])
-	// 	},
-
-	// 	A: () => {
-	// 		return new SUN.Once_or_None([
-	// 			new SUN.Match([
-	// 				new SUN.MatchToken('b', "b"),
-	// 				new SUN.MatchTerm('A'),
-	// 				new SUN.MatchTerm('S')
-	// 			])
-	// 		])
-	// 	}
-
-	// }, "S")
-	// let B = new SUN.Language("S", {
-	// 	'S': () => {
-	// 		return new SUN.ChooseOne([
-	// 			new SUN.Match([
-	// 				new SUN.MatchToken("b", "b"),
-	// 				new SUN.MatchTerm("C")
-	// 			]),
-	// 			new SUN.Match([
-	// 				new SUN.MatchTerm("A"),
-	// 				new SUN.MatchTerm("B")
-	// 			])
-	// 		])
-	// 	},
-
-	// 	'A': () => {
-	// 		return new SUN.Once_or_None([
-	// 			new SUN.MatchToken('b', 'b')
-	// 		])
-	// 	},
-
-	// 	'B': () => {
-	// 		return new SUN.Once_or_None([
-	// 			new SUN.Match([
-	// 				new SUN.MatchToken("a", "a"),
-	// 				new SUN.MatchTerm("D")
-	// 			])
-	// 		])
-	// 	},
-
-	// 	'C': () => {
-	// 		return new SUN.ChooseOne([
-	// 			new SUN.MatchToken("b", "b"),
-	// 			new SUN.Match([
-	// 				new SUN.MatchTerm("A"),
-	// 				new SUN.MatchTerm("D")
-	// 			])
-	// 		])
-	// 	},
-
-	// 	'D': () => {
-	// 		return new SUN.ChooseOne([
-	// 			new SUN.MatchToken("c", "c"),
-	// 			new SUN.Match([
-	// 				new SUN.MatchToken("a", "a"),
-	// 				new SUN.MatchTerm("S")
-	// 			])
-	// 		])
-	// 	}
-	// }, "S")
-	// B.get_SelectSet();
-	// console.log(B)
-
 	let PL0 = SUN.PL0()
+	let EXP = SUN.Calculator()
+	EXP.print()
+	console.log(EXP)
+	// PL0.print();
+	// console.log(PL0)
 
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
@@ -254,7 +106,9 @@ var a : int[3], b : int = a[1] + "";.
 		ans = []
 
 		let ast = PL0.match(lexer.tokens);
-		console.log(ast);
+		// console.log(ast);
+
+		console.log(EXP.match(lexer.tokens));
 
 		if (ast[3] !== undefined) {
 			let err = ast[3];

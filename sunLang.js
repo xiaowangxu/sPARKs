@@ -2110,116 +2110,157 @@ export const PL0 = function () {
 	}, "program");
 }
 
-export const BasicCalculator = function () {
-	return new Language("BasicCalculator", {
-		AddMinus: () => {
-			return new ChooseOne([
-				new MatchToken("TK_ADD", undefined, () => {
-					return ['op', { type: 'op', value: '+' }]
-				}),
-				new MatchToken("TK_MINUS", undefined, () => {
-					return ['op', { type: 'op', value: '-' }]
-				})
-			])
-		},
-		PlusDivide: () => {
-			return new ChooseOne([
-				new MatchToken("TK_MULTIPIY", undefined, () => {
-					return ['op', { type: 'op', value: '*' }]
-				}),
-				new MatchToken("TK_DIVIDE", undefined, () => {
-					return ['op', { type: 'op', value: '/' }]
-				})
-			])
-		},
-		Expression: () => {
+export const Calculator = function () {
+	return new Language("PL0 Calculator", {
+		"S": () => {
 			return new Match([
-				new MatchTerm("Term"),
-				new MatchTerm("Expression$"),
+				new MatchTerm("表达式"),
+				new MatchToken("TK_EOF")
 			], (match) => {
-				console.log(">> Expression", match.nodes)
-				if (match.nodes[1][1] === null) {
-					return match.nodes[0];
-				}
-				return ['binop', {
-					type: 'binop',
-					value: match.nodes[1][1].op.value,
-					a: match.nodes[0][1],
-					b: match.nodes[1][1].b,
-				}]
+				return match.nodes[0];
 			})
 		},
-		Expression$: () => {
-			return new Once_or_None([
-				new Match([
-					new MatchTerm("AddMinus"),
-					new MatchTerm("Term")
-				], (match) => {
-					console.log(">> Expression$", match.nodes)
-					return ['subop', {
-						type: 'subop',
-						op: match.nodes[0][1],
-						b: match.nodes[1][1]
-					}]
-				})
-			])
-		},
-		Term: () => {
+		"表达式": () => {
 			return new Match([
-				new MatchTerm("Primary"),
-				new MatchTerm("Term$"),
+				new Once_or_None([
+					new MatchTerm("加法运算符")
+				], true),
+				new MatchTerm("项"),
+				new More_or_None([
+					new Match([
+						new MatchTerm("加法运算符"),
+						new MatchTerm("项")
+					], (match) => {
+						return ["more", { op: match.nodes[0][1].value, target: match.nodes[1][1] }]
+					})
+				], (match) => {
+					return ["mores", match.nodes]
+				})
 			], (match) => {
-				console.log(">> Term", match.nodes)
-				if (match.nodes[1][1] === null) {
-					return match.nodes[0];
+				console.log(">>>>>>>>>", match.nodes)
+				let term = match.nodes[1][1]
+				if (match.nodes[0][1] !== null) {
+					term = {
+						type: "uniop",
+						value: match.nodes[0][1].value,
+						sub: term,
+						$start: match.nodes[0][1].$start,
+						$end: term.$end,
+						$startidx: match.nodes[0][1].$startidx,
+						$endidx: term.$endidx,
+					}
 				}
-				return ['binop', {
-					type: 'binop',
-					value: match.nodes[1][1].op.value,
-					a: match.nodes[0][1],
-					b: match.nodes[1][1].b,
-				}]
+				let sub = term
+				console.log(sub)
+				match.nodes[2][1].forEach((more) => {
+					let b = more[1]
+					sub = {
+						type: "binop",
+						value: b.op,
+						sub: [sub, b.target],
+						$start: sub.$start,
+						$end: b.target.$end,
+						$startidx: sub.$startidx,
+						$endidx: b.target.$endidx,
+					}
+				})
+				return ['exp', sub]
 			})
 		},
-		Term$: () => {
-			return new Once_or_None([
-				new Match([
-					new MatchTerm("PlusDivide"),
-					new MatchTerm("Primary")
+		"项": () => {
+			return new Match([
+				new MatchTerm("因子"),
+				new More_or_None([
+					new Match([
+						new MatchTerm("乘法运算符"),
+						new MatchTerm("因子")
+					], (match) => {
+						// console.log("????", match.nodes)
+						return ["more", { op: match.nodes[0][1].value, target: match.nodes[1][1] }]
+					})
 				], (match) => {
-					console.log(">> Term$", match.nodes)
-					return ['subop', {
-						type: 'subop',
-						op: match.nodes[0][1],
-						b: match.nodes[1][1]
-					}]
+					return ["mores", match.nodes]
 				})
-			])
+			], (match) => {
+				console.log(">>>>>>>>>|||||", match.nodes)
+				let term = match.nodes[0][1]
+				let sub = term
+				console.log(sub)
+				match.nodes[1][1].forEach((more) => {
+					let b = more[1]
+					sub = {
+						type: "binop",
+						value: b.op,
+						sub: [sub, b.target],
+						$start: sub.$start,
+						$end: b.target.$end,
+						$startidx: sub.$startidx,
+						$endidx: b.target.$endidx,
+					}
+				})
+				return ['exp', sub]
+			})
 		},
-		Primary: () => {
+		"因子": () => {
+			return new Match([
+				new Once_or_None([
+					new MatchTerm("加法运算符")
+				], true),
+				new MatchTerm("原子"),
+			], (match) => {
+				let term = match.nodes[1][1]
+				if (match.nodes[0][1] !== null && match.nodes[0][1].value === "-") {
+					term = {
+						type: "uniop",
+						value: match.nodes[0][1].value,
+						sub: term,
+						$start: match.nodes[0][1].$start,
+						$end: term.$end,
+						$startidx: match.nodes[0][1].$startidx,
+						$endidx: term.$endidx,
+					}
+				}
+				return ['factor', term]
+			})
+		},
+		"原子": () => {
 			return new ChooseOne([
-				new MatchTerm("Number"),
+				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => {
+					return ['iden', { type: 'identifier', value: token.value }]
+				}),
+				new MatchToken("TK_INT", undefined, (match, token) => {
+					return ['value', { type: 'value', value: token.value }]
+				}),
 				new Match([
 					new MatchToken("TK_LCIR"),
-					new MatchTerm("Expression"),
+					new MatchTerm("表达式"),
 					new MatchToken("TK_RCIR")
 				], (match) => {
-					console.log(">> Primary", match.nodes)
 					return match.nodes[0]
 				})
 			])
 		},
-		Number: () => {
+		"加法运算符": () => {
 			return new ChooseOne([
-				new MatchToken("TK_INT", undefined, (match, token) => {
-					return ['value', { type: 'value', datatype: 'int', value: token.value }]
+				new MatchToken("TK_ADD", undefined, (match, token) => {
+					return ["op", { type: "op", value: "+" }]
 				}),
-				new MatchToken("TK_FLOAT", undefined, (match, token) => {
-					return ['value', { type: 'value', datatype: 'float', value: token.value }]
+				new MatchToken("TK_MINUS", undefined, (match, token) => {
+					return ["op", { type: "op", value: "-" }]
+				})
+			])
+		},
+		"乘法运算符": () => {
+			return new ChooseOne([
+				new MatchToken("TK_MULTIPIY", undefined, (match, token) => {
+					return ["op", { type: "op", value: "*" }]
+				}),
+				new MatchToken("TK_DIVIDE", undefined, (match, token) => {
+					return ["op", { type: "op", value: "/" }]
 				})
 			])
 		}
-	}, "Expression")
+	}, "S")
 }
 
 Array.prototype.tab = function () {
@@ -2304,7 +2345,7 @@ export const PL0Visitors = {
 			if (path.node.count <= 1) {
 				// let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.$start, path.$end, "~", "yellow")
 				// let reason = str1
-				return [{ type: "type", value: path.node.value, $start: path.$start, $end: path.$end, $startpos: path.$startpos, $endpos: path.$endpos }, new BaseError("TypeCheckWarning", `size of an array should be bigger than 1\nthis will be assumed as <a style="color: rgb(0, 255,0);">${path.node.value}</a> type`, path.$start, path.$end, { color: 'orange' })]
+				return [{ type: "type", value: path.node.value, $start: path.$start, $end: path.$end, $startidx: path.$startidx, $endidx: path.$endidx }, new BaseError("TypeCheckWarning", `size of an array should be bigger than 1\nthis will be assumed as <a style="color: rgb(0, 255,0);">${path.node.value}</a> type`, path.$start, path.$end, { color: 'orange' })]
 			}
 			return path.node
 		}
@@ -2494,6 +2535,34 @@ export const PL0Visitors = {
 			}
 		}
 	},
+	uniop: {
+		walk(node) {
+			console.log(">>> uni visitor walk func", node)
+			return ["sub"]
+		},
+		transform(path) {
+			// console.log(path.node)
+			let type = { type: 'type', value: '$unknown' };
+			if (path.node.sub[0].typedef !== null) {
+				type = { type: "type", value: (path.node.sub[0].typedef.value) };
+			}
+			if (path.node.sub[0].$immediate) {
+				return {
+					type: 'value',
+					$immediate: true,
+					typedef: type,
+					value: -(path.node.sub[0].value)
+				}
+			}
+			return {
+				type: 'uniop',
+				value: path.node.value,
+				$immediate: false,
+				typedef: type,
+				sub: path.node.sub
+			}
+		}
+	},
 	indexof: {
 		walk: (node) => {
 			console.log(node);
@@ -2591,10 +2660,9 @@ export const PL0Visitors = {
 		},
 		transform(path) {
 			if (path.node.identifier.identype === '$unknown') return path.node;
-			console.log(path.node.identifier)
 			if (path.node.identifier.identype !== 'procedure') {
 				let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.node.identifier.def.$start, path.node.identifier.def.$end, "~", "yellow")
-				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a><a style="color: yellow">definition of ${path.node.identifier.value}</a>`
+				let reason = str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a>definition of <a style="color: yellow">${path.node.identifier.value}</a>`
 				return [path.node, new BaseError("UnmatchedProcedureError", `\n${reason}\n\nwhen calling procedure <a style="color: rgb(0,255,0);">${path.node.identifier.value}</a>\nwhich is not a callable procedure`, path.node.identifier.$start, path.node.identifier.$end)]
 			}
 			return path.node
