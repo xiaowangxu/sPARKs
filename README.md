@@ -6,6 +6,8 @@
 
 demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，在AST上naive地翻译成JS代码使得PL/0程序可以大致运行：https://xiaowangxu.github.io/sun/PL0/
 
+demo: 这里是一个使用当前版本的sPARks编写的PL/0语言编译器，支持类型检测：https://xiaowangxu.github.io/sun/PL0PP/
+
 > 思考和妥协后发现，在牺牲一定的语法整洁性的情况下是可以自动计算Select集的，因此将计算SelectSet作为实验功能，附加LL(1)检查和文法提示，也许提供LL(1)分析器是可行的了。
 
 ---
