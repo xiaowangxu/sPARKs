@@ -1295,12 +1295,13 @@ export class More_or_None extends Match {
 }
 
 export class ChooseOne extends Match {
-	constructor(subs, match_func) {
-		super(subs, match_func);
+	constructor(subs, firstmatch = false) {
+		super(subs, undefined);
+		this.firstmatch = firstmatch;
 	}
 
 	toString() {
-		return this.term_name || `(${this.subs.map(i => i.toString()).join(' | ')})`
+		return `(${this.subs.map(i => i.toString()).join(' | ')})`
 	}
 
 	match(tokens, idx = 0, language) {
@@ -1316,6 +1317,9 @@ export class ChooseOne extends Match {
 				if (last_idx < nextidx) {
 					last_idx = nextidx
 					last_node = node
+				}
+				if (this.firstmatch) {
+					return [true, last_idx, last_node, undefined, undefined];
 				}
 			}
 			if (last_error_idx < erroridx) {
@@ -1361,6 +1365,75 @@ export class ChooseOne extends Match {
 		let finded = false;
 		for (let i = 0; i < this.subs.length; i++) {
 			let match = this.subs[i];
+			let find = match.get_Follow2(term, layer + 1, language);
+			if (find) {
+				finded = true;
+			}
+		}
+		return finded;
+	}
+}
+
+export class LLkChooseOne extends Match {
+	constructor(subs) {
+		super(subs, undefined);
+	}
+
+	toString() {
+		return `(${this.subs.map(i => i[0].toString() + (i[1] === undefined ? "" : " " + i[1].toString())).join(' | ')})`
+	}
+
+	match(tokens, idx = 0, language) {
+		for (let i = 0; i < this.subs.length; i++) {
+			let [ans, nextidx, node, error, erroridx] = this.subs[i][0].match(tokens, idx, language);
+			if (ans) {
+				if (this.subs[i][1] === undefined) {
+					return [ans, nextidx, node, error, erroridx];
+				}
+				let [ans2, nextidx2, node2, error2, erroridx2] = this.subs[i][1].match(tokens, nextidx, language);
+				if (ans2) {
+					return [true, nextidx2, node2, error2, erroridx2];
+				}
+				else {
+					return [false, idx, undefined, new SPARK_Error('NoMatchingError', `found ${this.subs[i][0].toString()} and expected ${this.subs[i][1].toString()}\n but no valid match`, tokens[nextidx2], error2), erroridx2];
+				}
+			}
+		}
+		return [false, idx, undefined, new SPARK_Error('NoMatchingError', `needs ${this.toString()}\nbut no valid match`, tokens[idx], undefined), idx];
+	}
+
+	check(term_name, expanded, traveled = [], language) {
+		this.subs.forEach((s) => {
+			s.check(term_name, [expanded, `<ChooseOne>\t\twith ${this.toString()} select ${s.toString()}`].join(" \n-> "), traveled, language);
+		})
+	}
+
+	get_First(last = [], language) {
+		let ans = true;
+		this.subs.forEach((s) => {
+			let match = new Match([s[0], s[1]]);
+			let can = match.get_First(last, language)
+			if (!can) ans = false;
+		})
+		return ans;
+	}
+
+	get_Follow(term, last = [], layer = 0, language) {
+		let finded = false;
+		for (let i = 0; i < this.subs.length; i++) {
+			let match = new Match([this.subs[i][0], this.subs[i][1]]);
+			let find = match.get_Follow(term, last, layer + 1, language);
+			if (find) {
+				finded = true;
+			}
+		}
+		return finded;
+	}
+
+	get_Follow2(term, layer = 0, language) {
+		let finded = false;
+		for (let i = 0; i < this.subs.length; i++) {
+			let match = new Match([this.subs[i][0], this.subs[i][1]]);
 			let find = match.get_Follow2(term, layer + 1, language);
 			if (find) {
 				finded = true;
@@ -1532,6 +1605,23 @@ export class Skip extends Match {
 		return false;
 	}
 }
+
+// let choose = new LLkChooseOne([
+// 	[new MatchToken("TK_IDENTIFIER"), undefined],
+// 	[new MatchToken("TK_INT"), undefined],
+// 	[new MatchToken("TK_LCIR"), new Match([
+// 		new MatchToken("TK_STRING"),
+// 		new MatchToken("TK_RCIR")
+// 	])]
+// ])
+
+// console.log(choose.toString())
+
+// console.log(choose.match([
+// 	new Token("TK_LCIR", 123, new ScriptPosition("", 0, 1), new ScriptPosition("", 0, 1)),
+// 	new Token("TK_INT", 123, new ScriptPosition("", 0, 2), new ScriptPosition("", 0, 2)),
+// 	new Token("TK_RCIR", 123, new ScriptPosition("", 0, 3), new ScriptPosition("", 0, 3))
+// ]))
 
 export const PL0 = function () {
 	return new Language("PL/0", {
