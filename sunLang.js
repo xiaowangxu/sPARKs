@@ -787,31 +787,6 @@ export class DFA {
 	}
 }
 
-// let dfa = new DFA("A", [
-// 	["A", [[1, "B"]]],
-// 	["B", [[1, "C"], [1, "B"], [0, "B"]]],
-// 	["C", [[0, "D"]]],
-// 	["D", [[1, "E"]]]
-// ], "E")
-// let dfa = new DFA("0", [
-// 	["0", [['a', "0"],
-// 	['a', "1"],
-// 	['b', "1"]]],
-// 	["1", [["a", "0"]]]
-// ], "0")
-let dfa = new DFA("A", [
-	["A", [['$', "B"]]],
-	["B", [
-		['0', "B"],
-		['1', "B1"]
-	]],
-	["B1", [['0', "B"]]],
-	["B", [['$', "C"]]]
-], "C")
-console.log(dfa.toString())
-dfa.regulate();
-console.log(dfa.toString())
-
 // sPARks
 const TOKEN_CMP = (a, b) => {
 	return a.equal(b)
@@ -848,6 +823,50 @@ export class SPARK_Error {
 		this.start = idx.start.clone();
 		this.end = idx.end.clone();
 		this.last = last;
+	}
+}
+
+export class PredictTable {
+	constructor() {
+		this.table = {};
+		this.accepts = new Set(["TK_EOF"]);
+	}
+
+	add(accept, state, to) {
+		if (this.table[state] === undefined) {
+			this.accepts.add(accept);
+			this.table[state] = {
+				[accept]: to
+			}
+		}
+		else {
+			if (this.table[state][accept] === undefined) {
+				this.accepts.add(accept);
+				this.table[state][accept] = to;
+			}
+			else
+				throw new Error("<sPARks> predict table error: lanmguage is not LL(1)")
+		}
+	}
+
+	toTableArray() {
+		let ans = [["----------------"]];
+		this.accepts.forEach((accept) => {
+			ans[0].push(`${accept}`);
+		})
+		for (let key in this.table) {
+			let item = [key];
+			this.accepts.forEach((accept) => {
+				if (this.table[key][accept] === undefined) {
+					item.push("----------------");
+				}
+				else {
+					item.push(this.table[key][accept].toString());
+				}
+			})
+			ans.push(item);
+		}
+		return ans;
 	}
 }
 
@@ -979,7 +998,7 @@ export class Language {
 	get_FollowSet(term) {
 		if (!this.$PassChecking) throw new Error(`<sPARks> error: language ${this.name}'s rules contains left recusion, please remove those rules and try again`)
 		this.get_FirstSet();
-		this.$Follow[term].add(new Token("$#", "$#"));
+		this.$Follow[term].add(new Token("TK_EOF", "EOF"));
 		for (let key in this.$Terms) {
 			this.$get_Follow1(key);
 		}
@@ -1023,7 +1042,22 @@ export class Language {
 				}
 				this.$Select[key].push({ term: new Skip(), set: this.$Follow[key] })
 			}
+			else {
+				this.$Select[key].push({ term: term, set: $get_Select(term, key, this) })
+			}
 		}
+	}
+
+	toLL1Table() {
+		let table = new PredictTable();
+		for (let key in this.$Select) {
+			this.$Select[key].forEach((w) => {
+				w.set.forEach((accept) => {
+					table.add(accept.type, key, w.term);
+				})
+			})
+		}
+		return table;
 	}
 }
 
@@ -1455,7 +1489,7 @@ export class MatchToken extends Match {
 	}
 
 	toString() {
-		let token = this.value || `${TOKENS[this.token]}`
+		let token = this.value || TOKENS[this.token] || this.token
 		if (['[', ']', '{', '}', '(', ')'].includes(token)) return `'${token}'`
 		return token;
 	}
@@ -3272,3 +3306,35 @@ export class SSVM {
 
 	}
 }
+
+// let a = new Language("test", {
+// 	S: () => {
+// 		return new ChooseOne([
+// 			new MatchToken("a"),
+// 			new MatchToken("^"),
+// 			new Match([
+// 				new MatchToken("("),
+// 				new MatchTerm("T"),
+// 				new MatchToken(")")
+// 			])
+// 		])
+// 	},
+// 	T: () => {
+// 		return new Match([
+// 			new MatchTerm("S"),
+// 			new MatchTerm("T'"),
+// 		])
+// 	},
+// 	"T'": () => {
+// 		return new Once_or_None([
+// 			new Match([
+// 				new MatchToken(","),
+// 				new MatchTerm("S"),
+// 				new MatchTerm("T'")
+// 			])
+// 		])
+// 	}
+// }, "S")
+// a.get_SelectSet()
+// console.log(a)
+// console.table(a.toLL1Table().toTableArray());
