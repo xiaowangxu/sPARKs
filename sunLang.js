@@ -827,7 +827,8 @@ export class SPARK_Error {
 }
 
 export class PredictTable {
-	constructor() {
+	constructor(start) {
+		this.start = start;
 		this.table = {};
 		this.accepts = new Set(["TK_EOF"]);
 	}
@@ -867,6 +868,29 @@ export class PredictTable {
 			ans.push(item);
 		}
 		return ans;
+	}
+
+	match(tokens) {
+		let idx = 0;
+		let state = this.start;
+		let a = tokens[idx];
+		let analyze_stack = [new Token("TK_EOF", "EOF"), this.start];
+		while (analyze_stack.length > 0) {
+			let x = analyze_stack.pop()
+			if (x instanceof MatchToken) {
+				if (a.type === x.token) {
+					continue;
+				}
+				else {
+					return false;
+				}
+			}
+			else {
+				if (this.table[x][a.type] !== undefined) {
+					console.log(this.table[x])
+				}
+			}
+		}
 	}
 }
 
@@ -1049,7 +1073,7 @@ export class Language {
 	}
 
 	toLL1Table() {
-		let table = new PredictTable();
+		let table = new PredictTable(this.starter);
 		for (let key in this.$Select) {
 			this.$Select[key].forEach((w) => {
 				w.set.forEach((accept) => {
@@ -2261,7 +2285,6 @@ export const Calculator = function () {
 					return ["mores", match.nodes]
 				})
 			], (match) => {
-				console.log(">>>>>>>>>", match.nodes)
 				let term = match.nodes[1][1]
 				if (match.nodes[0][1] !== null) {
 					term = {
@@ -2275,7 +2298,6 @@ export const Calculator = function () {
 					}
 				}
 				let sub = term
-				console.log(sub)
 				match.nodes[2][1].forEach((more) => {
 					let b = more[1]
 					sub = {
@@ -2306,10 +2328,8 @@ export const Calculator = function () {
 					return ["mores", match.nodes]
 				})
 			], (match) => {
-				console.log(">>>>>>>>>|||||", match.nodes)
 				let term = match.nodes[0][1]
 				let sub = term
-				console.log(sub)
 				match.nodes[1][1].forEach((more) => {
 					let b = more[1]
 					sub = {
@@ -2362,7 +2382,7 @@ export const Calculator = function () {
 				], (match) => {
 					return match.nodes[0]
 				})
-			])
+			], true)
 		},
 		"加法运算符": () => {
 			return new ChooseOne([
@@ -2372,7 +2392,7 @@ export const Calculator = function () {
 				new MatchToken("TK_MINUS", undefined, (match, token) => {
 					return ["op", { type: "op", value: "-" }]
 				})
-			])
+			], true)
 		},
 		"乘法运算符": () => {
 			return new ChooseOne([
@@ -2382,7 +2402,7 @@ export const Calculator = function () {
 				new MatchToken("TK_DIVIDE", undefined, (match, token) => {
 					return ["op", { type: "op", value: "/" }]
 				})
-			])
+			], true)
 		}
 	}, "S")
 }
@@ -3310,8 +3330,8 @@ export class SSVM {
 // let a = new Language("test", {
 // 	S: () => {
 // 		return new ChooseOne([
-// 			new MatchToken("a"),
-// 			new MatchToken("^"),
+// 			new MatchToken("TK_IDENTIFIER"),
+// 			new MatchToken("TK_KEYWORD", "!!!"),
 // 			new Match([
 // 				new MatchToken("("),
 // 				new MatchTerm("T"),
@@ -3336,5 +3356,8 @@ export class SSVM {
 // 	}
 // }, "S")
 // a.get_SelectSet()
-// console.log(a)
+// let s = new SourceScript("1+2+4", "test")
+// let t = new Lexer(s)
+// t.tokenize()
+// console.log(a.toLL1Table().match(t.tokens));
 // console.table(a.toLL1Table().toTableArray());

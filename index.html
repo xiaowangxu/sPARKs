@@ -71,10 +71,6 @@ var a : int[3], b : int = a[1] + "";.
 
 	let PL0 = SUN.PL0()
 	let EXP = SUN.Calculator()
-	EXP.print()
-	console.log(EXP)
-	// PL0.print();
-	// console.log(PL0)
 
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
@@ -106,9 +102,8 @@ var a : int[3], b : int = a[1] + "";.
 		ans = []
 
 		let ast = PL0.match(lexer.tokens);
-		// console.log(ast);
-
-		console.log(EXP.match(lexer.tokens));
+		// let ast = EXP.match(lexer.tokens);
+		// console.log(EXP.match(lexer.tokens));
 
 		if (ast[3] !== undefined) {
 			let err = ast[3];
