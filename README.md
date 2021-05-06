@@ -143,7 +143,7 @@ sPARks
 - [x] 生成First集合
 - [x] 生成Follow集合 // 2021/4/6 通过书上的测试和自定义测试
 - [x] 生成Select集合
-- [x] 提供LL(1)分析器
+- [x] 提供LL(1)分析器 // 50%
 - [ ] 提供范例语言sunLang
 
 在 https://xiaowangxu.github.io/sun/PL0/ 的改进
