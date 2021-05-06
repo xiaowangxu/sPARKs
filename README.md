@@ -2,7 +2,7 @@
 
 **S**un **P**arser **K**it**S**
 
-#### 一个js编写的“递归下降”语法分析器
+#### 一个js编写的“递归下降、LL(1)”语法分析器
 
 demo: 这里是一个使用基础版本的sPARks编写的PL/0语言翻译器，在AST上naive地翻译成JS代码使得PL/0程序可以大致运行：https://xiaowangxu.github.io/sun/PL0/
 
@@ -25,13 +25,19 @@ demo: 这里是一个使用当前版本的sPARks编写的PL/0语言编译器，�
 
 **2012/4/24 _更新_：若文法是正规文法，可调用 ```get_SelectSet()``` 计算Select集**
 
+**2012/5/2 _更新_：LL(1)文法，可生成```PredictTable```**
+
+**2012/5/6 _更新_：```PredictTable.match(tokens)``` LL(1) 预测表分析器，暂无 ```AST``` 输出**
 -----
 ### 包含
 - ```SourceScript``` 源代码输入，提供 ```get / peek``` 方法，同时配合 ```ScriptPosition``` 可输出源代码的指定位置并高亮
 - ```ScriptPosition``` 指出源码中的一段
 - ```Lexer``` 一个简单的词法分析器，和相关类库（```BaseError``` / ```Token```）
-- ```sPARks``` 递归下降语法解析
-- ```JSConverter``` PL/0 AST 到 JavaScript 翻译器
+- ```sPARks``` 语法解析
+- ```DFA``` 确定有穷状态机，支持 NFA 到 DFA 的子集法转换
+- ```Language``` 语言库，使用ebnf文法描述，可回溯match，生成First/Follow/Select集合，LL(1)正规式可生成预测表
+- ```PredictTable``` LL(1)预测表
+- ```Walker``` AST 转换
 
 ----
 ### 基本使用
@@ -98,6 +104,20 @@ lexer.tokenize();
 let [finished, fin_index, ast, error, error_index] = TestLang.match(lexer.tokens);
 // ast即为解析成的语法树
 ```
+#### LL(1)分析
+```js
+// LL1Calculator - 使用正规式描述的Language
+let BasicCalcutor = LL1Calculator();
+
+let PredictTable = BasicCaluclator.toLL1Table();
+
+let source = new SourceScript("1+(2*3.14)/(233+12)", "Test script");
+
+let lexer = new Lexer(source);
+lexer.tokenize();
+
+let [finished, fin_index, ast, error, error_index] = PredictTable.match(lexer.tokens);
+```
 
 ---
 ### 一些特性
@@ -109,6 +129,7 @@ let [finished, fin_index, ast, error, error_index] = TestLang.match(lexer.tokens
 - 自动求解文法的First/Follow集
 - 自动求解正规文法的Select集
 - Walker Ast遍历转换
+- 自动生成预测表，LL(1)文法检测
 
 ---
 ### **未来进度：**
@@ -121,8 +142,8 @@ sPARks
 - [x] 更友好的错误提示
 - [x] 生成First集合
 - [x] 生成Follow集合 // 2021/4/6 通过书上的测试和自定义测试
-- [ ] 生成Select集合
-- [ ] 提供LL(1)分析器
+- [x] 生成Select集合
+- [x] 提供LL(1)分析器
 - [ ] 提供范例语言sunLang
 
 在 https://xiaowangxu.github.io/sun/PL0/ 的改进
