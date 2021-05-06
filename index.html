@@ -74,7 +74,7 @@ var a : int[3], b : int = a[1] + "";.
 	let LL1EXP = SUN.LL1Calculator();
 	LL1EXP.get_SelectSet();
 	let LL1TABLE = LL1EXP.toLL1Table()
-	console.table(LL1TABLE.toTableArray())
+	// console.table(LL1TABLE.toTableArray())
 
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
@@ -107,6 +107,7 @@ var a : int[3], b : int = a[1] + "";.
 
 		// let ast = PL0.match(lexer.tokens);
 		let ast = LL1TABLE.match(lexer.tokens);
+		console.log(ast);
 		// let ast = EXP.match(lexer.tokens);
 		// console.log(EXP.match(lexer.tokens));
 
@@ -146,18 +147,18 @@ var a : int[3], b : int = a[1] + "";.
 			}
 			// else
 			// document.getElementById('ast').innerText = 'Error !'
-			let jsc = new SUN.SSIRConverter(ast[2][1])
-			jsc.convert()
-			ans = []
-			if (jsc.errors.length > 0) {
-				jsc.errors.forEach((err) => {
-					let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
-					ans.push(s + `<a style="color: red;">${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `<a style="color: red;">${i}</a>`).join('\n')}</a>\n`);
-				})
-				document.getElementById('count').innerHTML = ans.join('')
-			}
-			else
-				document.getElementById('count').innerText = "// Translated by sun sPARks" + '\n' + jsc.target
+			// let jsc = new SUN.SSIRConverter(ast[2][1])
+			// jsc.convert()
+			// ans = []
+			// if (jsc.errors.length > 0) {
+			// 	jsc.errors.forEach((err) => {
+			// 		let [s, starter] = source.get_ScriptPortion(err.start, err.end, '^', "red")
+			// 		ans.push(s + `<a style="color: red;">${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `<a style="color: red;">${i}</a>`).join('\n')}</a>\n`);
+			// 	})
+			// 	document.getElementById('count').innerHTML = ans.join('')
+			// }
+			// else
+			// 	document.getElementById('count').innerText = "// Translated by sun sPARks" + '\n' + jsc.target
 		}
 
 	}

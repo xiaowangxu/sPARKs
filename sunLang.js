@@ -1008,13 +1008,13 @@ export class Language {
 	}
 
 	match(tokens) {
-		let term_name = this.starter;
-		if (this.$Terms[term_name] === undefined) {
-			throw Error(`<sPARks> error: term name "${term}" is not defined in language ${this.name}`);
-		}
-		else {
-			return (this.$Terms[term_name]()).match(tokens, 0, this);
-		}
+		let term = new Match([
+			new MatchTerm(this.starter),
+			new MatchToken("TK_EOF")
+		], (match) => {
+			return match.nodes[0]
+		})
+		return term.match(tokens, 0, this);
 	}
 
 	get_FirstSet() {
@@ -1605,11 +1605,7 @@ export class MatchTerm extends Match {
 	}
 
 	match(tokens, idx = 0, language) {
-		let term;
-		if (language === undefined)
-			term = SPARK_get(this.term_name);
-		else
-			term = language.get(this.term_name);
+		let term = language.get(this.term_name);
 		let [ans, nextidx, node, error, erroridx] = term.match(tokens, idx, language);
 		if (!ans) {
 			if (this.returnundefinded) {
@@ -1634,21 +1630,13 @@ export class MatchTerm extends Match {
 			throw Error(`<sPARks> grammer check error: left recusion appeared when checking <${term_name}>`)
 		}
 		else {
-			let term;
-			if (language === undefined)
-				term = SPARK_get(this.term_name);
-			else
-				term = language.get(this.term_name);
+			let term = language.get(this.term_name);
 			term.check(term_name, [expanded, `<Term>\t\t\t${this.toString()} expand`].join(" \n-> "), traveled.concat(this.term_name), language);
 		}
 	}
 
 	get_First(last = [], language) {
-		let term;
-		if (language === undefined)
-			term = SPARK_get(this.term_name);
-		else
-			term = language.get(this.term_name);
+		let term = language.get(this.term_name);
 		let ans = term.get_First(last, language);
 		return ans;
 	}
@@ -2284,8 +2272,7 @@ export const PL0 = function () {
 		'program': () => {
 			return new Match([
 				new MatchTerm('subprogram'),
-				new MatchToken("TK_DOT", undefined),
-				new MatchToken("TK_EOF", undefined)
+				new MatchToken("TK_DOT", undefined)
 			], (match, token) => {
 				return match.nodes[0]
 			})
@@ -2295,14 +2282,6 @@ export const PL0 = function () {
 
 export const Calculator = function () {
 	return new Language("PL0 Calculator", {
-		"S": () => {
-			return new Match([
-				new MatchTerm("表达式"),
-				new MatchToken("TK_EOF")
-			], (match) => {
-				return match.nodes[0];
-			})
-		},
 		"表达式": () => {
 			return new Match([
 				new Once_or_None([
@@ -2439,7 +2418,7 @@ export const Calculator = function () {
 				})
 			], true)
 		}
-	}, "S")
+	}, "表达式")
 }
 
 export const LL1Calculator = function () {
