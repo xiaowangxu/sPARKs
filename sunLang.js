@@ -846,12 +846,12 @@ export class PredictTable {
 				this.table[state][accept] = to;
 			}
 			else
-				throw new Error("<sPARks> predict table error: lanmguage is not LL(1)")
+				throw new Error("<sPARks> predict table error: language is not LL(1)")
 		}
 	}
 
 	toTableArray() {
-		let ans = [["----------------"]];
+		let ans = [[undefined]];
 		this.accepts.forEach((accept) => {
 			ans[0].push(`${accept}`);
 		})
@@ -859,7 +859,7 @@ export class PredictTable {
 			let item = [key];
 			this.accepts.forEach((accept) => {
 				if (this.table[key][accept] === undefined) {
-					item.push("----------------");
+					item.push(undefined);
 				}
 				else {
 					item.push(this.table[key][accept].toString());
@@ -874,23 +874,58 @@ export class PredictTable {
 		let idx = 0;
 		let state = this.start;
 		let a = tokens[idx];
-		let analyze_stack = [new Token("TK_EOF", "EOF"), this.start];
+		let analyze_stack = [new MatchToken("TK_EOF", "EOF"), this.start];
 		while (analyze_stack.length > 0) {
+			a = tokens[idx];
+			// console.log(analyze_stack)
 			let x = analyze_stack.pop()
 			if (x instanceof MatchToken) {
 				if (a.type === x.token) {
+					// console.log(">>> Match", a, x,)
+					idx++;
 					continue;
 				}
 				else {
-					return false;
+					// console.log(">>> Match Failed")
+					return [false, 0, undefined, new SPARK_Error('TokenUnmatchError', `expected ${TOKENS[x.token] === undefined ? x.token : TOKENS[x.token]}\nbut found ${TOKENS[a.type] === undefined ? a.type : TOKENS[a.type]}`, a, undefined), idx];
 				}
 			}
 			else {
+				// console.log("is NonTerm: ", x, a, this.table[x][a.type])
 				if (this.table[x][a.type] !== undefined) {
-					console.log(this.table[x])
+					if (this.table[x][a.type] instanceof MatchToken) {
+						analyze_stack.push(this.table[x][a.type]);
+						continue;
+					}
+					if (this.table[x][a.type] instanceof MatchTerm) {
+						analyze_stack.push(this.table[x][a.type].term_name);
+						continue;
+					}
+					let matchs = this.table[x][a.type].subs.filter(i => true);
+					matchs = matchs.reverse();
+					matchs.forEach((m) => {
+						if (m instanceof MatchToken) {
+							analyze_stack.push(m);
+						}
+						else {
+							analyze_stack.push(m.term_name);
+						}
+					})
+				}
+				else {
+					let ans = [];
+					for (let key in this.table[x]) {
+						if (TOKENS[key] !== undefined) {
+							ans.push(TOKENS[key]);
+							continue;
+						}
+						ans.push(key);
+					}
+					return [false, 0, undefined, new SPARK_Error('NoMatchingError', `needs ${ans.join(" | ")}\nbut no valid match`, a, undefined), idx]
 				}
 			}
 		}
+		return true;
 	}
 }
 
@@ -1641,7 +1676,7 @@ export class Skip extends Match {
 	}
 
 	toString() {
-		return "epsilon";
+		return "$e";
 	}
 
 	match(tokens, idx = 0, language) {
@@ -2405,6 +2440,77 @@ export const Calculator = function () {
 			], true)
 		}
 	}, "S")
+}
+
+export const LL1Calculator = function () {
+	return new Language("LL1Calculator", {
+		"E": () => {
+			return new Match([
+				new MatchTerm("T"),
+				new MatchTerm("E'")
+			])
+		},
+		"E'": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchToken("TK_ADD"),
+					new MatchTerm("T"),
+					new MatchTerm("E'")
+				]),
+				new Match([
+					new MatchToken("TK_MINUS"),
+					new MatchTerm("T"),
+					new MatchTerm("E'")
+				]),
+				new Skip()
+			])
+		},
+		"T": () => {
+			return new Match([
+				new MatchTerm("A"),
+				new MatchTerm("T'")
+			])
+		},
+		"T'": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchToken("TK_MULTIPIY"),
+					new MatchTerm("A"),
+					new MatchTerm("T'")
+				]),
+				new Match([
+					new MatchToken("TK_DIVIDE"),
+					new MatchTerm("A"),
+					new MatchTerm("T'")
+				]),
+				new Skip()
+			])
+		},
+		"A": () => {
+			return new ChooseOne([
+				new MatchTerm("F"),
+				new Match([
+					new MatchToken("TK_ADD"),
+					new MatchTerm("F"),
+				]),
+				new Match([
+					new MatchToken("TK_MINUS"),
+					new MatchTerm("F"),
+				])
+			])
+		},
+		"F": () => {
+			return new ChooseOne([
+				new MatchToken("TK_INT"),
+				new MatchToken("TK_IDENTIFIER"),
+				new Match([
+					new MatchToken("TK_LCIR"),
+					new MatchTerm("E"),
+					new MatchToken("TK_RCIR")
+				])
+			])
+		}
+	}, "E")
 }
 
 Array.prototype.tab = function () {
@@ -3326,38 +3432,3 @@ export class SSVM {
 
 	}
 }
-
-// let a = new Language("test", {
-// 	S: () => {
-// 		return new ChooseOne([
-// 			new MatchToken("TK_IDENTIFIER"),
-// 			new MatchToken("TK_KEYWORD", "!!!"),
-// 			new Match([
-// 				new MatchToken("("),
-// 				new MatchTerm("T"),
-// 				new MatchToken(")")
-// 			])
-// 		])
-// 	},
-// 	T: () => {
-// 		return new Match([
-// 			new MatchTerm("S"),
-// 			new MatchTerm("T'"),
-// 		])
-// 	},
-// 	"T'": () => {
-// 		return new Once_or_None([
-// 			new Match([
-// 				new MatchToken(","),
-// 				new MatchTerm("S"),
-// 				new MatchTerm("T'")
-// 			])
-// 		])
-// 	}
-// }, "S")
-// a.get_SelectSet()
-// let s = new SourceScript("1+2+4", "test")
-// let t = new Lexer(s)
-// t.tokenize()
-// console.log(a.toLL1Table().match(t.tokens));
-// console.table(a.toLL1Table().toTableArray());

@@ -70,7 +70,11 @@ var a : int[3], b : int = a[1] + "";.
 	})
 
 	let PL0 = SUN.PL0()
-	let EXP = SUN.Calculator()
+
+	let LL1EXP = SUN.LL1Calculator();
+	LL1EXP.get_SelectSet();
+	let LL1TABLE = LL1EXP.toLL1Table()
+	console.table(LL1TABLE.toTableArray())
 
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
@@ -91,7 +95,7 @@ var a : int[3], b : int = a[1] + "";.
 			// ans.push(e.type + ' : ' + e.message + "\n" + source.get_ScriptPortion(e.start, e.end, '^', 'red')[0]);
 		})
 
-		console.log(lexer.tokens)
+		// console.log(lexer.tokens)
 
 		lexer.tokens.forEach(t => {
 			ans.push(source.get_ScriptPortion(t.start, t.end, undefined, "rgb(0,255,0)", false)[0] + ` (${t.type}, '${t.value}')` + '\n');
@@ -101,7 +105,8 @@ var a : int[3], b : int = a[1] + "";.
 
 		ans = []
 
-		let ast = PL0.match(lexer.tokens);
+		// let ast = PL0.match(lexer.tokens);
+		let ast = LL1TABLE.match(lexer.tokens);
 		// let ast = EXP.match(lexer.tokens);
 		// console.log(EXP.match(lexer.tokens));
 
