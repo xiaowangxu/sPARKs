@@ -69,11 +69,13 @@ var a : int[3], b : int = a[1] + "";.
 		window.input(cm.getValue())
 	})
 
-	let PL0 = SUN.PL0()
+	// let PL0 = SUN.PL0()
 
 	let LL1EXP = SUN.LL1Calculator();
-	LL1EXP.get_SelectSet();
-	let LL1TABLE = LL1EXP.toLL1Table()
+	// LL1EXP.get_SelectSet();
+	console.log(LL1EXP)
+	LL1EXP.print();
+	// let LL1TABLE = LL1EXP.toLL1Table()
 	// console.table(LL1TABLE.toTableArray())
 
 	window.test = function () {
@@ -106,7 +108,7 @@ var a : int[3], b : int = a[1] + "";.
 		ans = []
 
 		// let ast = PL0.match(lexer.tokens);
-		let ast = LL1TABLE.match(lexer.tokens);
+		let ast = LL1EXP.match(lexer.tokens);
 		console.log(ast);
 		// let ast = EXP.match(lexer.tokens);
 		// console.log(EXP.match(lexer.tokens));

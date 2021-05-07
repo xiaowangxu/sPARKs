@@ -135,7 +135,7 @@ const TOKENS = {
 	TK_IDENTIFIER: "标识符",
 	TK_ADD: "+",
 	TK_MINUS: "-",
-	TK_MULTIPIY: "*",
+	TK_MULTIPLY: "*",
 	TK_DIVIDE: "/",
 	TK_MOD: "%",
 	TK_DOT: ".",
@@ -299,7 +299,7 @@ export class Lexer {
 		let keyword = identifier.toLowerCase()
 
 		if (KEYWORD.includes(keyword))
-			this.tokens.push(new Token('TK_KEYWORD', keyword, this.last_pos, position));
+			this.tokens.push(new Token('TK_KEYWORD_' + identifier.toUpperCase(), undefined, this.last_pos, position));
 		else
 			this.tokens.push(new Token('TK_IDENTIFIER', identifier, this.last_pos, position));
 	}
@@ -466,7 +466,7 @@ export class Lexer {
 				this.advance();
 			}
 			else if (this.current === '*') {
-				this.tokens.push(new Token("TK_MULTIPIY", "*", this.last_pos, this.current_pos));
+				this.tokens.push(new Token("TK_MULTIPLY", "*", this.last_pos, this.current_pos));
 				this.advance();
 			}
 			else if (this.current === '/') {
@@ -845,8 +845,11 @@ export class PredictTable {
 				this.accepts.add(accept);
 				this.table[state][accept] = to;
 			}
-			else
+			else {
+				console.log(accept, state, to)
+				console.log(this)
 				throw new Error("<sPARks> predict table error: language is not LL(1)")
+			}
 		}
 	}
 
@@ -877,7 +880,7 @@ export class PredictTable {
 		let analyze_stack = [new MatchToken("TK_EOF", "EOF"), this.start];
 		while (analyze_stack.length > 0) {
 			a = tokens[idx];
-			// console.log(analyze_stack)
+			console.log(analyze_stack)
 			let x = analyze_stack.pop()
 			if (x instanceof MatchToken) {
 				if (a.type === x.token) {
@@ -891,7 +894,7 @@ export class PredictTable {
 				}
 			}
 			else {
-				// console.log("is NonTerm: ", x, a, this.table[x][a.type])
+				console.log("is NonTerm: ", x, a, this.table[x][a.type])
 				if (this.table[x][a.type] !== undefined) {
 					if (this.table[x][a.type] instanceof MatchToken) {
 						analyze_stack.push(this.table[x][a.type]);
@@ -921,7 +924,7 @@ export class PredictTable {
 						}
 						ans.push(key);
 					}
-					return [false, 0, undefined, new SPARK_Error('NoMatchingError', `needs ${ans.join(" | ")}\nbut no valid match`, a, undefined), idx]
+					return [false, 0, undefined, new SPARK_Error('NoMatchingError', `needs\n${ans.map((i) => `\t${i}`).join("\n")}\nbut no valid match`, a, undefined), idx]
 				}
 			}
 		}
@@ -930,7 +933,7 @@ export class PredictTable {
 }
 
 export class Language {
-	constructor(name, bnf, starter) {
+	constructor(name, ebnf, starter, bnf = false) {
 		this.name = name;
 		this.starter = starter;
 		this.$PassChecking = true;
@@ -939,12 +942,15 @@ export class Language {
 		this.$Follow = {};
 		this.$Select = {};
 		this.$Empty = {};
-		for (let key in bnf) {
-			this.registe(key, bnf[key]);
+		for (let key in ebnf) {
+			this.registe(key, ebnf[key]);
 		}
 		this.check();
-		if (this.$PassChecking)
-			this.get_FollowSet(this.starter);
+		console.log(this);
+		if (this.$PassChecking && bnf) {
+			this.get_Epsilon();
+			this.get_First();
+		}
 	}
 	print() {
 		console.log(`Language ${this.name}`);
@@ -987,11 +993,59 @@ export class Language {
 
 	get(term_name) {
 		if (this.$Terms[term_name] === undefined) {
-			throw Error(`<sPARks> node error: term name "${term}" is not defined`);
+			throw Error(`<sPARks> node error: term name "${term_name}" is not defined`);
 		}
 		else {
 			return this.$Terms[term_name]();
 		}
+	}
+
+	get_Epsilon() {
+		let ans = this.$Empty;
+		for (let key in this.$Terms) {
+			ans[key] = false;
+		}
+		let changed = true;
+		while (changed) {
+			changed = false;
+			for (let key in this.$Terms) {
+				let match = this.get(key);
+				let empty = match.get_Epsilon(this);
+				if (empty !== ans[key]) {
+					ans[key] = empty;
+					changed = true;
+				}
+			}
+		}
+	}
+
+	get_First() {
+		let ans = this.$First;
+		for (let key in this.$Terms) {
+			ans[key] = [];
+		}
+		let changed = true;
+		while (changed) {
+			changed = false;
+			for (let key in this.$Terms) {
+				let match = this.get(key);
+				let [empty, fs] = match.get_First(this);
+				let lastlen = ans[key].length;
+				ans[key].union(fs);
+				if (lastlen !== ans[key].length) {
+					changed = true;
+				}
+			}
+			// let str = [];
+			// for (let key in this.$Terms) {
+			// 	str.push(`${key} -> ${this.$First[key].map(t => t.type)}`)
+			// }
+			// console.log(str.join("\n"));
+		}
+	}
+
+	$get_First(match) {
+		return match.get_First(this);
 	}
 
 	registe(term_name, match) {
@@ -1015,96 +1069,6 @@ export class Language {
 			return match.nodes[0]
 		})
 		return term.match(tokens, 0, this);
-	}
-
-	get_FirstSet() {
-		if (!this.$PassChecking) throw new Error(`<sPARks> error: language ${this.name}'s rules contains left recusion, please remove those rules and try again`)
-		let ans = {};
-		for (let key in this.$Terms) {
-			let a = [];
-			let can_empty = this.get(key).get_First(a, this);
-			// console.log(`First(${key})` + " >>", !can_empty, "\t", `${a.map(i => `${i.type}:${i.value}`).join(' ')}`);
-			if (!can_empty) a.add(new Token('$e', '$e'));
-			this.$Empty[key] = !can_empty;
-			ans[key] = a;
-		}
-		this.$First = ans;
-	}
-
-	$get_Follow1(term) {
-		let ans = [];
-		for (let key in this.$Terms) {
-			this.get(key).get_Follow(term, ans, undefined, this);
-		}
-		this.$Follow[term].union(ans);
-		return ans;
-	}
-
-	$get_Follow2(term) {
-		let lastlen = this.$Follow[term].length;
-		let newlen = lastlen;
-		for (let key in this.$Terms) {
-			let can_reach = this.get(key).get_Follow2(term, undefined, this);
-			// console.log(key, "->", term, can_reach)
-			if (can_reach) {
-				this.$Follow[term].union(this.$Follow[key]);
-				newlen = this.$Follow[term].length;
-			}
-		}
-		return newlen !== lastlen;
-	}
-
-	get_FollowSet(term) {
-		if (!this.$PassChecking) throw new Error(`<sPARks> error: language ${this.name}'s rules contains left recusion, please remove those rules and try again`)
-		this.get_FirstSet();
-		this.$Follow[term].add(new Token("TK_EOF", "EOF"));
-		for (let key in this.$Terms) {
-			this.$get_Follow1(key);
-		}
-		let change = true;
-		while (change) {
-			change = false;
-			for (let key in this.$Terms) {
-				let ans = this.$get_Follow2(key);
-				if (ans) change = true;
-			}
-		}
-	}
-
-	get_SelectSet() {
-		function $get_Select(match, term, l) {
-			let a = [];
-			if (!match.get_First(a, l)) {
-				a.union(l.$Follow[term])
-				return a;
-			}
-			else {
-				return a;
-			}
-		}
-
-		for (let key in this.$Terms) {
-			let term = this.get(key);
-			if (term instanceof ChooseOne) {
-				term.subs.forEach((t) => {
-					this.$Select[key].push({ term: t, set: $get_Select(t, key, this) })
-				})
-			}
-			else if (term instanceof Once_or_None || term instanceof More_or_None) {
-				if (term.subs instanceof ChooseOne) {
-					term.subs.subs.forEach((t) => {
-						this.$Select[key].push({ term: t, set: $get_Select(t, key, this) })
-					})
-				}
-				else {
-					this.$Select[key].push({ term: term.subs, set: $get_Select(term.subs, key, this) })
-				}
-				this.$Select[key].push({ term: new Skip(), set: this.$Follow[key] })
-			}
-			else {
-				this.$Select[key].push({ term: term, set: $get_Select(term, key, this) })
-			}
-		}
 	}
 
 	toLL1Table() {
@@ -1193,66 +1157,22 @@ export class Match {
 		this.subs[0].check(term_name, [expanded, `<Match>\t\t\tfirst of ${this.toString()}`].join(" \n-> "), traveled, language);
 	}
 
-	get_First(last = [], language) {
-		let ans = false;
+	get_Epsilon(language) {
 		for (let i = 0; i < this.subs.length; i++) {
-			ans = this.subs[i].get_First(last, language);
-			if (ans) break;
+			let empty = this.subs[i].get_Epsilon(language);
+			if (!empty) return false;
 		}
-		return ans;
+		return true;
 	}
 
-	get_Follow(term, last = [], layer = 0, language) {
-		// console.log(last)
-		// console.log("In Match:", this.toString(), term)
+	get_First(language) {
+		let first = [];
 		for (let i = 0; i < this.subs.length; i++) {
-			let match = this.subs[i];
-			let find = match.get_Follow(term, last, layer + 1, language);
-			if (find) {
-				if (i + 1 === this.subs.length) {
-					// console.log(get_Layer(layer), ">>>>>> last")
-					return true;
-				}
-				else {
-					let ans = [];
-					this.subs[i + 1].get_First(ans, language);
-					last.union(ans);
-					return false;
-				}
-			}
+			let [empty, fs] = this.subs[i].get_First(language);
+			first.union(fs);
+			if (!empty) return [false, fs];
 		}
-		return false;
-	}
-
-	get_Follow2(term, layer = 0, language) {
-		// console.log(get_Layer(layer), "In Match:", this.toString())
-		for (let i = 0; i < this.subs.length; i++) {
-			let match = this.subs[i];
-			let find = match.get_Follow2(term, layer + 1, language);
-			if (find) {
-				if (i + 1 === this.subs.length) {
-					// console.log(get_Layer(layer), ">>>>>> last")
-					return true;
-				}
-				else {
-					// console.log(get_Layer(layer), ">>>>>> add")
-					let ans = this.subs[i + 1].get_First([], language);
-					return !ans;
-				}
-			}
-		}
-		return false;
-	}
-
-	reach(term, language) {
-		for (let i = 0; i < this.subs.length; i++) {
-			let match = this.subs[i];
-			let find = match.reach(term, language);
-			if (find) {
-				return true;
-			}
-		}
-		return false;
+		return [true, first];
 	}
 }
 
@@ -1288,23 +1208,12 @@ export class Once_or_None extends Match {
 		this.subs.check(term_name, [expanded, `<OnceOrNone>\t\t${this.toString()}`].join(" \n-> "), traveled, language);
 	}
 
-	get_First(last = [], language) {
-		this.subs.get_First(last, language);
-		return false;
+	get_Epsilon() {
+		return true;
 	}
 
-	get_Follow(term, last = [], layer = 0, language) {
-		// console.log(get_Layer(layer), "In Once_or_None:", this.toString())
-		return this.subs.get_Follow(term, last, layer + 1, language);
-	}
-
-	get_Follow2(term, layer = 0, language) {
-		// console.log(get_Layer(layer), "In Once_or_None:", this.toString())
-		return this.subs.get_Follow2(term, layer + 1, language);
-	}
-
-	reach(term, language) {
-		return this.subs.reach(term, language);
+	get_First(language) {
+		return [true, this.subs.get_First(language)]
 	}
 }
 
@@ -1367,23 +1276,12 @@ export class More_or_None extends Match {
 		this.subs.check(term_name, [expanded, `<MoreOrNone>\t\t${this.toString()}`].join(" \n-> "), traveled, language);
 	}
 
-	get_First(last = [], language) {
-		this.subs.get_First(last, language);
-		return false;
+	get_Epsilon() {
+		return true;
 	}
 
-	get_Follow(term, last = [], layer = 0, language) {
-		// console.log(get_Layer(layer), "In More_or_None:", this.toString())
-		return this.subs.get_Follow(term, last, layer + 1, language);
-	}
-
-	get_Follow2(term, layer = 0, language) {
-		// console.log(get_Layer(layer), "In More_or_None:", this.toString())
-		return this.subs.get_Follow2(term, layer + 1, language);
-	}
-
-	reach(term, language) {
-		return this.subs.reach(term, language);
+	get_First(language) {
+		return [true, this.subs.get_First(language)]
 	}
 }
 
@@ -1433,37 +1331,23 @@ export class ChooseOne extends Match {
 		})
 	}
 
-	get_First(last = [], language) {
-		let ans = true;
-		this.subs.forEach((s) => {
-			let can = s.get_First(last, language)
-			if (!can) ans = false;
-		})
-		return ans;
+	get_Epsilon(language) {
+		for (let i = 0; i < this.subs.length; i++) {
+			let empty = this.subs[i].get_Epsilon(language);
+			if (empty) return true;
+		}
+		return false;
 	}
 
-	get_Follow(term, last = [], layer = 0, language) {
-		let finded = false;
+	get_First(language) {
+		let first = [];
+		let canempty = false;
 		for (let i = 0; i < this.subs.length; i++) {
-			let match = this.subs[i];
-			let find = match.get_Follow(term, last, layer + 1, language);
-			if (find) {
-				finded = true;
-			}
+			let [empty, fs] = this.subs[i].get_First(language);
+			if (empty) canempty = true;
+			first.union(fs);
 		}
-		return finded;
-	}
-
-	get_Follow2(term, layer = 0, language) {
-		let finded = false;
-		for (let i = 0; i < this.subs.length; i++) {
-			let match = this.subs[i];
-			let find = match.get_Follow2(term, layer + 1, language);
-			if (find) {
-				finded = true;
-			}
-		}
-		return finded;
+		return [canempty, first];
 	}
 }
 
@@ -1497,42 +1381,8 @@ export class LLkChooseOne extends Match {
 
 	check(term_name, expanded, traveled = [], language) {
 		this.subs.forEach((s) => {
-			s.check(term_name, [expanded, `<ChooseOne>\t\twith ${this.toString()} select ${s.toString()}`].join(" \n-> "), traveled, language);
+			s[0].check(term_name, [expanded, `<LLkChooseOne>\t\twith ${this.toString()} select ${s.toString()}`].join(" \n-> "), traveled, language);
 		})
-	}
-
-	get_First(last = [], language) {
-		let ans = true;
-		this.subs.forEach((s) => {
-			let match = new Match([s[0], s[1]]);
-			let can = match.get_First(last, language)
-			if (!can) ans = false;
-		})
-		return ans;
-	}
-
-	get_Follow(term, last = [], layer = 0, language) {
-		let finded = false;
-		for (let i = 0; i < this.subs.length; i++) {
-			let match = new Match([this.subs[i][0], this.subs[i][1]]);
-			let find = match.get_Follow(term, last, layer + 1, language);
-			if (find) {
-				finded = true;
-			}
-		}
-		return finded;
-	}
-
-	get_Follow2(term, layer = 0, language) {
-		let finded = false;
-		for (let i = 0; i < this.subs.length; i++) {
-			let match = new Match([this.subs[i][0], this.subs[i][1]]);
-			let find = match.get_Follow2(term, layer + 1, language);
-			if (find) {
-				finded = true;
-			}
-		}
-		return finded;
 	}
 }
 
@@ -1574,21 +1424,12 @@ export class MatchToken extends Match {
 	check() {
 	}
 
-	get_First(last = [], language) {
-		last.add(new Token(this.token, this.value));
-		return true;
-	}
-
-	get_Follow(term, last = [], layer = 0, language) {
+	get_Epsilon() {
 		return false;
 	}
 
-	get_Follow2(term, layer, language) {
-		return false;
-	}
-
-	reach(term, language) {
-		return false;
+	get_First() {
+		return [false, [new Token(this.token, this.value)]];
 	}
 }
 
@@ -1635,26 +1476,12 @@ export class MatchTerm extends Match {
 		}
 	}
 
-	get_First(last = [], language) {
-		let term = language.get(this.term_name);
-		let ans = term.get_First(last, language);
-		return ans;
+	get_Epsilon(language) {
+		return language.$Empty[this.term_name];
 	}
 
-	get_Follow(term, last = [], layer = 0, language) {
-		// console.log(get_Layer(layer), ">>>>>>", term === this.term_name)
-		if (term === this.term_name) return true;
-	}
-
-	get_Follow2(term, layer, language) {
-		// console.log(get_Layer(layer), ">>>>>>", term === this.term_name)
-		if (term === this.term_name) return true;
-	}
-
-	reach(term, language) {
-		// console.log(">>>", this.term_name, term)
-		if (term === this.term_name) return true;
-		return false;
+	get_First(language) {
+		return [language.$Empty[this.term_name], language.$First[this.term_name]]
 	}
 }
 
@@ -1674,35 +1501,14 @@ export class Skip extends Match {
 	check() {
 	}
 
-	get_First(last = []) {
-		return false;
+	get_Epsilon() {
+		return true;
 	}
 
-	get_Follow(term, last = [], layer) {
-		return false;
-	}
-
-	reach(term) {
-		return false;
+	get_First() {
+		return [true, []]
 	}
 }
-
-// let choose = new LLkChooseOne([
-// 	[new MatchToken("TK_IDENTIFIER"), undefined],
-// 	[new MatchToken("TK_INT"), undefined],
-// 	[new MatchToken("TK_LCIR"), new Match([
-// 		new MatchToken("TK_STRING"),
-// 		new MatchToken("TK_RCIR")
-// 	])]
-// ])
-
-// console.log(choose.toString())
-
-// console.log(choose.match([
-// 	new Token("TK_LCIR", 123, new ScriptPosition("", 0, 1), new ScriptPosition("", 0, 1)),
-// 	new Token("TK_INT", 123, new ScriptPosition("", 0, 2), new ScriptPosition("", 0, 2)),
-// 	new Token("TK_RCIR", 123, new ScriptPosition("", 0, 3), new ScriptPosition("", 0, 3))
-// ]))
 
 export const PL0 = function () {
 	return new Language("PL/0", {
@@ -1725,7 +1531,7 @@ export const PL0 = function () {
 
 		'const': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "const"),
+				new MatchToken("TK_KEYWORD_CONST"),
 				new MatchTerm("constdef"),
 				new More_or_None([
 					new Match([
@@ -1751,9 +1557,9 @@ export const PL0 = function () {
 		'type': () => {
 			return new Match([
 				new ChooseOne([
-					new MatchToken('TK_KEYWORD', "int", (match, token) => { return ['type', { type: 'type', value: 'int' }] }),
-					new MatchToken('TK_KEYWORD', "real", (match, token) => { return ['type', { type: 'type', value: 'real' }] }),
-					new MatchToken('TK_KEYWORD', "string", (match, token) => { return ['type', { type: 'type', value: 'string' }] }),
+					new MatchToken('TK_KEYWORD_INT', undefined, (match, token) => { return ['type', { type: 'type', value: 'int' }] }),
+					new MatchToken('TK_KEYWORD_REAL', undefined, (match, token) => { return ['type', { type: 'type', value: 'real' }] }),
+					new MatchToken('TK_KEYWORD_STRING', undefined, (match, token) => { return ['type', { type: 'type', value: 'string' }] }),
 				]),
 				new Once_or_None([
 					new Match([
@@ -1802,7 +1608,7 @@ export const PL0 = function () {
 
 		'var': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "var"),
+				new MatchToken("TK_KEYWORD_VAR"),
 				new MatchTerm("vardef"),
 				new More_or_None([
 					new Match([
@@ -1860,9 +1666,9 @@ export const PL0 = function () {
 				}),
 				new Match([
 					new ChooseOne([
-						new MatchToken('TK_KEYWORD', "int", (match, token) => { return ['type', { type: 'type', value: 'int' }] }),
-						new MatchToken('TK_KEYWORD', "real", (match, token) => { return ['type', { type: 'type', value: 'real' }] }),
-						new MatchToken('TK_KEYWORD', "string", (match, token) => { return ['type', { type: 'type', value: 'string' }] })
+						new MatchToken('TK_KEYWORD_INT', undefined, (match, token) => { return ['type', { type: 'type', value: 'int' }] }),
+						new MatchToken('TK_KEYWORD_REAL', undefined, (match, token) => { return ['type', { type: 'type', value: 'real' }] }),
+						new MatchToken('TK_KEYWORD_STRING', undefined, (match, token) => { return ['type', { type: 'type', value: 'string' }] })
 					]),
 					new MatchToken("TK_LCIR", undefined),
 					new MatchTerm("exp"),
@@ -1884,7 +1690,7 @@ export const PL0 = function () {
 				new More_or_None([
 					new Match([
 						new ChooseOne([
-							new MatchToken("TK_MULTIPIY", undefined, (match, token) => { return ['op', { type: 'binop', value: "*" }] }),
+							new MatchToken("TK_MULTIPLY", undefined, (match, token) => { return ['op', { type: 'binop', value: "*" }] }),
 							new MatchToken("TK_DIVIDE", undefined, (match, token) => { return ['op', { type: 'binop', value: "/" }] })
 						]),
 						new MatchTerm('fact')
@@ -2007,7 +1813,7 @@ export const PL0 = function () {
 					}]
 				}),
 				new Match([
-					new MatchToken("TK_KEYWORD", 'odd'),
+					new MatchToken("TK_KEYWORD_ODD"),
 					new MatchTerm("exp")
 				], (match, token) => {
 					return ['binop', {
@@ -2080,13 +1886,13 @@ export const PL0 = function () {
 
 		'if': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "if"),
+				new MatchToken("TK_KEYWORD_IF"),
 				new MatchTerm('cmpexp'),
-				new MatchToken("TK_KEYWORD", "then"),
+				new MatchToken("TK_KEYWORD_THEN"),
 				new MatchTerm('statment'),
 				new Once_or_None([
 					new Match([
-						new MatchToken("TK_KEYWORD", "else"),
+						new MatchToken("TK_KEYWORD_ELSE"),
 						new MatchTerm('statment')
 					], (match, token) => {
 						if (match.nodes[0][1] === null) return undefined
@@ -2105,9 +1911,9 @@ export const PL0 = function () {
 
 		'while': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "while"),
+				new MatchToken("TK_KEYWORD_WHILE"),
 				new MatchTerm('cmpexp'),
-				new MatchToken("TK_KEYWORD", "do"),
+				new MatchToken("TK_KEYWORD_DO"),
 				new MatchTerm('statment'),
 			], (match, token) => {
 				return ['while', {
@@ -2120,7 +1926,7 @@ export const PL0 = function () {
 
 		'call': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "call"),
+				new MatchToken("TK_KEYWORD_CALL"),
 				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] })
 			], (match, token) => {
 				return ['call', {
@@ -2132,7 +1938,7 @@ export const PL0 = function () {
 
 		'read': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "read"),
+				new MatchToken("TK_KEYWORD_READ"),
 				new MatchToken("TK_LCIR", undefined),
 				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
 				new More_or_None([
@@ -2159,7 +1965,7 @@ export const PL0 = function () {
 
 		'write': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "write"),
+				new MatchToken("TK_KEYWORD_WRITE"),
 				new MatchToken("TK_LCIR", undefined),
 				new MatchTerm("exp"),
 				new More_or_None([
@@ -2186,7 +1992,7 @@ export const PL0 = function () {
 
 		'block': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "begin"),
+				new MatchToken("TK_KEYWORD_BEGIN"),
 				new MatchTerm("statment"),
 				new More_or_None([
 					new Match([
@@ -2198,7 +2004,7 @@ export const PL0 = function () {
 						return ['statment', match.nodes[0]]
 					})
 				], (match, token) => { return ['statments', match.nodes] }),
-				new MatchToken("TK_KEYWORD", "end")
+				new MatchToken("TK_KEYWORD_END")
 			], (match, token) => {
 				// console.log(match.nodes)
 				let arr = match.nodes[0][1] === null ? [] : [match.nodes[0][1]]
@@ -2214,7 +2020,7 @@ export const PL0 = function () {
 
 		'proceduredef': () => {
 			return new Match([
-				new MatchToken("TK_KEYWORD", "procedure"),
+				new MatchToken("TK_KEYWORD_PROCEDURE"),
 				new MatchToken("TK_IDENTIFIER", undefined, (match, token) => { return ['identifier', { type: 'identifier', value: token.value }] }),
 				new MatchToken("TK_END", undefined)
 			], (match, token) => {
@@ -2278,6 +2084,292 @@ export const PL0 = function () {
 			})
 		}
 	}, "program");
+}
+
+export const LL1PL0 = function () {
+	return new Language("PL/0", {
+		"程序": () => {
+			return new Match([
+				new MatchTerm("分程序"),
+				new MatchToken("TK_DOT")
+			])
+		},
+		"分程序": () => {
+			return new Match([
+				new MatchTerm("分程序1"),
+				new MatchTerm("分程序2"),
+				new MatchTerm("分程序3"),
+				new MatchTerm("语句")
+			])
+		},
+		"分程序1": () => {
+			return new ChooseOne([
+				new MatchTerm("常量说明"),
+				new Skip()
+			])
+		},
+		"分程序2": () => {
+			return new ChooseOne([
+				new MatchTerm("变量说明"),
+				new Skip()
+			])
+		},
+		"分程序3": () => {
+			return new ChooseOne([
+				new MatchTerm("过程说明"),
+				new Skip()
+			])
+		},
+		"常量说明": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_CONST"),
+				new MatchTerm("常量定义"),
+				new MatchTerm("常量说明1"),
+				new MatchToken("TK_END"),
+			])
+		},
+		"常量定义": () => {
+			return new Match([
+				new MatchToken("TK_IDENTIFIER"),
+				new MatchToken("TK_EQUAL"),
+				new MatchTerm("TK_INT")
+			])
+		},
+		"常量说明1": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchToken("TK_COMMA"),
+					new MatchTerm("常量定义"),
+					new MatchTerm("常量说明1")
+				]),
+				new Skip()
+			])
+		},
+		"变量说明": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_VAR"),
+				new MatchToken("TK_IDENTIFIER"),
+				new MatchTerm("变量说明1"),
+				new MatchToken("TK_END")
+			])
+		},
+		"变量说明1": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchToken("TK_COMMA"),
+					new MatchToken("TK_IDENTIFIER"),
+					new MatchTerm("变量说明1")
+				]),
+				new Skip()
+			])
+		},
+		"过程说明": () => {
+			return new Match([
+				new MatchTerm("过程首部"),
+				new MatchTerm("分程序"),
+				new MatchToken("TK_END"),
+				// new MatchTerm("过程说明1")
+			])
+		},
+		// "过程说明1": () => {
+		// 	return new Once_or_None([
+		// 		new Match([
+		// 			new MatchTerm("过程说明"),
+		// 			new MatchTerm("过程说明1")
+		// 		])
+		// 	])
+		// },
+		"过程首部": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_PROCEDURE"),
+				new MatchToken("TK_IDENTIFIER"),
+				new MatchToken("TK_END")
+			])
+		},
+		"语句": () => {
+			return new ChooseOne([
+				new MatchTerm("赋值语句"),
+				new MatchTerm("条件语句"),
+				new MatchTerm("当循环语句"),
+				new MatchTerm("过程调用语句"),
+				new MatchTerm("复合语句"),
+				new MatchTerm("读语句"),
+				new MatchTerm("写语句"),
+				new Skip()
+			])
+		},
+		"赋值语句": () => {
+			return new Match([
+				new MatchToken("TK_IDENTIFIER"),
+				new MatchToken("TK_BECOME"),
+				new MatchTerm("表达式")
+			])
+		},
+		"复合语句": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_BEGIN"),
+				new MatchTerm("语句"),
+				new MatchTerm("复合语句1"),
+				new MatchToken("TK_KEYWORD_END"),
+			])
+		},
+		"复合语句1": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchToken("TK_END"),
+					new MatchTerm("语句"),
+					new MatchTerm("复合语句1"),
+				]),
+				new Skip()
+			])
+		},
+		"条件表达式": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchTerm("表达式"),
+					new MatchTerm("关系运算符"),
+					new MatchTerm("表达式")
+				]),
+				new Match([
+					new MatchToken("TK_KEYWORD_ODD"),
+					new MatchTerm("表达式")
+				])
+			])
+		},
+		"表达式": () => {
+			return new Match([
+				new MatchTerm("表达式1"),
+				new MatchTerm("项"),
+				new MatchTerm("表达式2")
+			])
+		},
+		"表达式1": () => {
+			return new ChooseOne([
+				new MatchToken("TK_ADD"),
+				new MatchToken("TK_MINUS"),
+				new Skip()
+			])
+		},
+		"表达式2": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchTerm("加减法运算符"),
+					new MatchTerm("项"),
+					new MatchTerm("表达式2")
+				]),
+				new Skip()
+			])
+		},
+		"项": () => {
+			return new Match([
+				new MatchTerm("因子"),
+				new MatchTerm("项1")
+			])
+		},
+		"项1": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchTerm("乘除法运算符"),
+					new MatchTerm("因子"),
+					new MatchTerm("项1")
+				]),
+				new Skip()
+			])
+		},
+		"因子": () => {
+			return new ChooseOne([
+				new MatchToken("TK_IDENTIFIER"),
+				new MatchToken("TK_INT"),
+				new Match([
+					new MatchToken("TK_LCIR"),
+					new MatchTerm("表达式"),
+					new MatchToken("TK_RCIR")
+				])
+			])
+		},
+		"加减法运算符": () => {
+			return new ChooseOne([
+				new MatchToken("TK_ADD"),
+				new MatchToken("TK_MINUS")
+			])
+		},
+		"乘除法运算符": () => {
+			return new ChooseOne([
+				new MatchToken("TK_MULTIPLY"),
+				new MatchToken("TK_DIVIDE")
+			])
+		},
+		"关系运算符": () => {
+			return new ChooseOne([
+				new MatchToken("TK_EQUAL"),
+				new MatchToken("TK_NOTEQUAL"),
+				new MatchToken("TK_LESS"),
+				new MatchToken("TK_GREATER"),
+				new MatchToken("TK_LESSE"),
+				new MatchToken("TK_GREATERE"),
+			])
+		},
+		"条件语句": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_IF"),
+				new MatchTerm("条件表达式"),
+				new MatchToken("TK_KEYWORD_THEN"),
+				new MatchTerm("语句")
+			])
+		},
+		"过程调用语句": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_CALL"),
+				new MatchToken("TK_IDENTIFIER"),
+			])
+		},
+		"当循环语句": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_WHILE"),
+				new MatchTerm("条件表达式"),
+				new MatchToken("TK_IDENTIFIER"),
+				new MatchTerm("语句")
+			])
+		},
+		"读语句": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_READ"),
+				new MatchToken("TK_LCIR"),
+				new MatchToken("TK_IDENTIFIER"),
+				new MatchTerm("读语句1"),
+				new MatchToken("TK_RCIR")
+			])
+		},
+		"读语句1": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchToken("TK_COMMA"),
+					new MatchToken("TK_IDENTIFIER"),
+					new MatchTerm("读语句1"),
+				]),
+				new Skip()
+			])
+		},
+		"写语句": () => {
+			return new Match([
+				new MatchToken("TK_KEYWORD_WRITE"),
+				new MatchToken("TK_LCIR"),
+				new MatchTerm("表达式"),
+				new MatchTerm("写语句1"),
+				new MatchToken("TK_RCIR")
+			])
+		},
+		"写语句1": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchToken("TK_COMMA"),
+					new MatchTerm("表达式"),
+					new MatchTerm("写语句1"),
+				]),
+				new Skip()
+			])
+		}
+	}, "程序", true);
 }
 
 export const Calculator = function () {
@@ -2410,7 +2502,7 @@ export const Calculator = function () {
 		},
 		"乘法运算符": () => {
 			return new ChooseOne([
-				new MatchToken("TK_MULTIPIY", undefined, (match, token) => {
+				new MatchToken("TK_MULTIPLY", undefined, (match, token) => {
 					return ["op", { type: "op", value: "*" }]
 				}),
 				new MatchToken("TK_DIVIDE", undefined, (match, token) => {
@@ -2453,7 +2545,7 @@ export const LL1Calculator = function () {
 		"T'": () => {
 			return new ChooseOne([
 				new Match([
-					new MatchToken("TK_MULTIPIY"),
+					new MatchToken("TK_MULTIPLY"),
 					new MatchTerm("A"),
 					new MatchTerm("T'")
 				]),
@@ -2489,7 +2581,7 @@ export const LL1Calculator = function () {
 				])
 			])
 		}
-	}, "E")
+	}, "E", true)
 }
 
 Array.prototype.tab = function () {
