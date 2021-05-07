@@ -946,12 +946,14 @@ export class Language {
 			this.registe(key, ebnf[key]);
 		}
 		this.check();
-		console.log(this);
 		if (this.$PassChecking && bnf) {
 			this.get_Epsilon();
 			this.get_First();
+			this.get_Follow();
+			this.get_Select();
 		}
 	}
+
 	print() {
 		console.log(`Language ${this.name}`);
 		function get_Front(c) {
@@ -961,6 +963,7 @@ export class Language {
 			}
 			return str;
 		}
+		let ans = [];
 		let size = 0;
 		for (let key in this.$Terms) {
 			size = Math.max(size, key.length);
@@ -968,14 +971,15 @@ export class Language {
 		for (let key in this.$Terms) {
 			let term = this.$Terms[key]();
 			if (term instanceof ChooseOne) {
-				console.log(get_Front(size - key.length) + key + ' ::= ' + term.subs[0].toString());
+				ans.push(key + ' ::= ' + term.subs[0].toString());
 				term.subs.slice(1, term.length).forEach(s => {
-					console.log(get_Front(size) + '   | ' + s.toString());
+					ans.push(key + ' ::= ' + s.toString());
 				})
 			}
 			else
-				console.log(get_Front(size - key.length) + key + ' ::= ' + term.toString());
+				ans.push(key + ' ::= ' + term.toString());
 		}
+		console.log(ans.join("\n"));
 	}
 
 	check() {
@@ -1046,6 +1050,72 @@ export class Language {
 
 	$get_First(match) {
 		return match.get_First(this);
+	}
+
+	get_Follow() {
+		let ans = this.$Follow;
+		for (let key in this.$Terms) {
+			ans[key] = [];
+		}
+		ans[this.starter].union([new Token("TK_EOF", "EOF")]);
+		let changed = true;
+		function change(key, fs) {
+			let lastlen = ans[key].length;
+			ans[key].union(fs);
+			if (lastlen !== ans[key].length) {
+				changed = true;
+			}
+		}
+		while (changed) {
+			changed = false;
+			for (let key in this.$Terms) {
+				let match = this.get(key);
+				match.get_Follow(key, this, change);
+			}
+			// let str = [];
+			// for (let key in this.$Terms) {
+			// 	str.push(`${key} -> ${this.$Follow[key].map(t => t.type)}`)
+			// }
+			// console.log(str.join("\n"));
+		}
+	}
+
+	get_Select() {
+		for (let key in this.$Terms) {
+			this.$Select[key] = [];
+		}
+
+		function $get_Select(match, term, l) {
+			let [empty, fs] = l.$get_First(match);
+			if (empty) {
+				fs.union(l.$Follow[term])
+
+			}
+			return fs;
+		}
+
+		for (let key in this.$Terms) {
+			let term = this.get(key);
+			if (term instanceof ChooseOne) {
+				term.subs.forEach((t) => {
+					this.$Select[key].push({ term: t, set: $get_Select(t, key, this) })
+				})
+			}
+			else if (term instanceof Once_or_None || term instanceof More_or_None) {
+				if (term.subs instanceof ChooseOne) {
+					term.subs.subs.forEach((t) => {
+						this.$Select[key].push({ term: t, set: $get_Select(t, key, this) })
+					})
+				}
+				else {
+					this.$Select[key].push({ term: term.subs, set: $get_Select(term.subs, key, this) })
+				}
+				this.$Select[key].push({ term: new Skip(), set: this.$Follow[key] })
+			}
+			else {
+				this.$Select[key].push({ term: term, set: $get_Select(term, key, this) })
+			}
+		}
 	}
 
 	registe(term_name, match) {
@@ -1119,7 +1189,7 @@ export class Match {
 	}
 
 	toString() {
-		return this.term_name || `(${this.subs.map(i => i.toString()).join(' ')})`
+		return this.term_name || `${this.subs.map(i => i.toString()).join(' ')}`
 	}
 
 	match(tokens, idx = 0, language) {
@@ -1170,9 +1240,30 @@ export class Match {
 		for (let i = 0; i < this.subs.length; i++) {
 			let [empty, fs] = this.subs[i].get_First(language);
 			first.union(fs);
-			if (!empty) return [false, fs];
+			if (!empty) return [false, first];
 		}
 		return [true, first];
+	}
+
+	get_Follow(term_name, language, change) {
+		for (let i = 0; i < this.subs.length; i++) {
+			let term = this.subs[i];
+			if (term instanceof MatchTerm) {
+				if (i + 1 >= this.subs.length) {
+					change(term.term_name, language.$Follow[term_name]);
+				}
+				else {
+					let beta = new Match(this.subs.slice(i + 1, this.subs.length));
+					let [empty, fs] = beta.get_First(language);
+					// console.log(term.term_name, this.toString())
+					// console.log(beta.toString(), empty, fs)
+					if (empty) {
+						fs.union(language.$Follow[term_name]);
+					}
+					change(term.term_name, fs);
+				}
+			}
+		}
 	}
 }
 
@@ -1349,6 +1440,13 @@ export class ChooseOne extends Match {
 		}
 		return [canempty, first];
 	}
+
+	get_Follow(term_name, language, change) {
+		for (let i = 0; i < this.subs.length; i++) {
+			let term = this.subs[i];
+			term.get_Follow(term_name, language, change);
+		}
+	}
 }
 
 export class LLkChooseOne extends Match {
@@ -1399,7 +1497,7 @@ export class MatchToken extends Match {
 
 	toString() {
 		let token = this.value || TOKENS[this.token] || this.token
-		if (['[', ']', '{', '}', '(', ')'].includes(token)) return `'${token}'`
+		if (['[', ']', '{', '}', '(', ')'].includes(token)) return `${token}`
 		return token;
 	}
 
@@ -1431,6 +1529,10 @@ export class MatchToken extends Match {
 	get_First() {
 		return [false, [new Token(this.token, this.value)]];
 	}
+
+	get_Follow() {
+
+	}
 }
 
 export class MatchTerm extends Match {
@@ -1442,7 +1544,7 @@ export class MatchTerm extends Match {
 	}
 
 	toString() {
-		return "< " + this.term_name + " >";
+		return this.term_name;
 	}
 
 	match(tokens, idx = 0, language) {
@@ -1483,6 +1585,10 @@ export class MatchTerm extends Match {
 	get_First(language) {
 		return [language.$Empty[this.term_name], language.$First[this.term_name]]
 	}
+
+	get_Follow(term_name, language, change) {
+		change(this.term_name, language.$Follow[term_name]);
+	}
 }
 
 export class Skip extends Match {
@@ -1491,7 +1597,7 @@ export class Skip extends Match {
 	}
 
 	toString() {
-		return "$e";
+		return "''";
 	}
 
 	match(tokens, idx = 0, language) {
@@ -1507,6 +1613,10 @@ export class Skip extends Match {
 
 	get_First() {
 		return [true, []]
+	}
+
+	get_Follow() {
+
 	}
 }
 
@@ -2132,7 +2242,7 @@ export const LL1PL0 = function () {
 			return new Match([
 				new MatchToken("TK_IDENTIFIER"),
 				new MatchToken("TK_EQUAL"),
-				new MatchTerm("TK_INT")
+				new MatchToken("TK_INT")
 			])
 		},
 		"常量说明1": () => {
@@ -2167,18 +2277,19 @@ export const LL1PL0 = function () {
 			return new Match([
 				new MatchTerm("过程首部"),
 				new MatchTerm("分程序"),
-				new MatchToken("TK_END"),
-				// new MatchTerm("过程说明1")
+				new MatchTerm("过程说明1"),
+				new MatchToken("TK_END")
 			])
 		},
-		// "过程说明1": () => {
-		// 	return new Once_or_None([
-		// 		new Match([
-		// 			new MatchTerm("过程说明"),
-		// 			new MatchTerm("过程说明1")
-		// 		])
-		// 	])
-		// },
+		"过程说明1": () => {
+			return new ChooseOne([
+				new Match([
+					new MatchTerm("过程说明"),
+					new MatchTerm("过程说明1")
+				]),
+				new Skip()
+			])
+		},
 		"过程首部": () => {
 			return new Match([
 				new MatchToken("TK_KEYWORD_PROCEDURE"),
