@@ -2241,7 +2241,7 @@ export const LL1PL0 = function () {
 		"常量定义": () => {
 			return new Match([
 				new MatchToken("TK_IDENTIFIER"),
-				new MatchToken("TK_EQUAL"),
+				new MatchToken("TK_ASSIGN"),
 				new MatchToken("TK_INT")
 			])
 		},
@@ -2275,17 +2275,22 @@ export const LL1PL0 = function () {
 		},
 		"过程说明": () => {
 			return new Match([
-				new MatchTerm("过程首部"),
-				new MatchTerm("分程序"),
 				new MatchTerm("过程说明1"),
-				new MatchToken("TK_END")
+				new MatchTerm("过程说明2"),
 			])
 		},
 		"过程说明1": () => {
+			return new Match([
+				new MatchTerm("过程首部"),
+				new MatchTerm("分程序"),
+				new MatchToken("TK_END"),
+			])
+		},
+		"过程说明2": () => {
 			return new ChooseOne([
 				new Match([
-					new MatchTerm("过程说明"),
-					new MatchTerm("过程说明1")
+					new MatchTerm("过程说明1"),
+					new MatchTerm("过程说明2"),
 				]),
 				new Skip()
 			])
