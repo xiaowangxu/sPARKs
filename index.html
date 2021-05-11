@@ -71,11 +71,13 @@ var a : int[3], b : int = a[1] + "";.
 
 	// let PL0 = SUN.PL0()
 
-	let LL1EXP = SUN.LL1PL0();
+	let LL1EXP = SUN.PL0();
 	LL1EXP.print();
-	let LL1TABLE = LL1EXP.toLL1Table()
-	console.log(LL1EXP)
-	console.table(LL1TABLE.toTableArray())
+	let LL1EXP1 = SUN.LL1PL0();
+	LL1EXP1.print();
+	let LL1TABLE = LL1EXP1.toLL1Table()
+	// console.log(LL1EXP)
+	console.table(LL1TABLE.toMDTable())
 
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
@@ -107,7 +109,7 @@ var a : int[3], b : int = a[1] + "";.
 		ans = []
 
 		// let ast = PL0.match(lexer.tokens);
-		let ast = LL1TABLE.match(lexer.tokens);
+		let ast = LL1EXP.match(lexer.tokens);
 		console.log(ast);
 		// let ast = EXP.match(lexer.tokens);
 		// console.log(EXP.match(lexer.tokens));

@@ -299,7 +299,7 @@ export class Lexer {
 		let keyword = identifier.toLowerCase()
 
 		if (KEYWORD.includes(keyword))
-			this.tokens.push(new Token('TK_KEYWORD_' + identifier.toUpperCase(), undefined, this.last_pos, position));
+			this.tokens.push(new Token('TK_KEYWORD_' + identifier.toUpperCase(), keyword, this.last_pos, position));
 		else
 			this.tokens.push(new Token('TK_IDENTIFIER', identifier, this.last_pos, position));
 	}
@@ -871,6 +871,27 @@ export class PredictTable {
 			ans.push(item);
 		}
 		return ans;
+	}
+
+	toMDTable() {
+		let ans = [[undefined], ["----"]];
+		this.accepts.forEach((accept) => {
+			ans[0].push(`${accept}`);
+			ans[1].push("----");
+		})
+		for (let key in this.table) {
+			let item = [key];
+			this.accepts.forEach((accept) => {
+				if (this.table[key][accept] === undefined) {
+					item.push(undefined);
+				}
+				else {
+					item.push(this.table[key][accept].toString());
+				}
+			})
+			ans.push(item);
+		}
+		return ans.map((i, idx) => `| ${i.join(" | ")} |`).join("\n");
 	}
 
 	match(tokens) {
@@ -1497,7 +1518,7 @@ export class MatchToken extends Match {
 
 	toString() {
 		let token = this.value || TOKENS[this.token] || this.token
-		if (['[', ']', '{', '}', '(', ')'].includes(token)) return `${token}`
+		if (['[', ']', '{', '}', '(', ')'].includes(token)) return `'${token}'`
 		return token;
 	}
 
@@ -1544,7 +1565,7 @@ export class MatchTerm extends Match {
 	}
 
 	toString() {
-		return this.term_name;
+		return `<${this.term_name}>`;
 	}
 
 	match(tokens, idx = 0, language) {
@@ -1597,7 +1618,7 @@ export class Skip extends Match {
 	}
 
 	toString() {
-		return "''";
+		return "epsilon";
 	}
 
 	match(tokens, idx = 0, language) {
