@@ -2974,7 +2974,20 @@ export const PL0Visitors = {
 			}
 			let type = { type: 'type', value: '$unknown' };
 			if (path.node.sub[0].typedef !== null && path.node.sub[1].typedef !== null) {
-				type = { type: "type", value: TYPEMAP[path.node.sub[0].typedef.value](path.node.sub[1].typedef.value) };
+				if (path.node.sub[0].typedef.type !== 'type' || path.node.sub[1].typedef.type !== 'type') {
+					let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.sub[0].$start, path.node.sub[0].$end, "~", "yellow")
+					let [str, starter, end] = path.$sourcescript.get_ScriptPortion(path.node.sub[1].$start, path.node.sub[1].$end, "~", "yellow")
+					let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a>type of <a style="color: yellow">${typeToString(path.node.sub[0].typedef)}</a>` + '\n\n' + str + `<a style="color: white">${starter}${end}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter}${end}</a>type of <a style="color: yellow">${typeToString(path.node.sub[1].typedef)}</a>`
+					return [{
+						type: 'binop',
+						value: path.node.value,
+						$immediate: false,
+						typedef: type,
+						sub: path.node.sub
+					}, new BaseError("OperationError", `\n${reason}\n\narray type is not allowed in bin operation`, path.$start, path.$end)]
+				}
+				else
+					type = { type: "type", value: TYPEMAP[path.node.sub[0].typedef.value](path.node.sub[1].typedef.value) };
 			}
 			if (path.node.sub[0].$immediate && path.node.sub[1].$immediate) {
 				return {
@@ -3036,7 +3049,7 @@ export const PL0Visitors = {
 			}
 			else if (path.node.index.typedef.type !== "type" || path.node.index.typedef.value !== 'int') {
 				let [str1, starter1, end1] = path.$sourcescript.get_ScriptPortion(path.node.index.$start, path.node.index.$end, "~", "yellow")
-				let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a><a style="color: yellow">${typeToString(path.node.index.typedef)}</a>`
+				let reason = str1 + `<a style="color: white">${starter1}${end1}</a><a style="color: yellow">|</a>\n<a style="color: white">${starter1}${end1}</a>type of <a style="color: yellow">${typeToString(path.node.index.typedef)}</a>`
 				return [path.node, new BaseError("TypeCheckError", `\n${reason}\n\nindex of an array should be <a style="color: rgb(0,255,0);">int</a>`, path.$start, path.$end)]
 			}
 			else if (path.node.index.$immediate && (path.node.index.value < 0 || path.node.index.value >= path.node.identifier.typedef.count)) {
