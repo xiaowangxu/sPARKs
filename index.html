@@ -70,10 +70,84 @@ var a : int[3], b : int = a[1] + "";.
 	})
 
 	// let PL0 = SUN.PL0()
+	let new_lang = new SUN.Language("Expression XP", {
+		'表达式': () => {
+			return new SUN.ChooseOne([
+				new SUN.Match([
+					new SUN.MatchToken("+"),
+					new SUN.MatchTerm("项"),
+					new SUN.MatchTerm("表达式1"),
+				]),
+				new SUN.Match([
+					new SUN.MatchToken("-"),
+					new SUN.MatchTerm("项"),
+					new SUN.MatchTerm("表达式1"),
+				]),
+				new SUN.Match([
+					new SUN.MatchTerm("项"),
+					new SUN.MatchTerm("表达式1"),
+				])
+			])
+		},
+		'表达式1': () => {
+			return new SUN.ChooseOne([
+				new SUN.Match([
+					new SUN.MatchTerm("加法运算符"),
+					new SUN.MatchTerm("项"),
+					new SUN.MatchTerm("表达式1"),
+				]),
+				new SUN.Skip()
+			])
+		},
+		'项': () => {
+			return new SUN.Match([
+				new SUN.MatchTerm("因子"),
+				new SUN.MatchTerm("项1"),
+			])
+		},
+		'项1': () => {
+			return new SUN.ChooseOne([
+				new SUN.Match([
+					new SUN.MatchTerm("乘法运算符"),
+					new SUN.MatchTerm("因子"),
+					new SUN.MatchTerm("项1"),
+				]),
+				new SUN.Skip()
+			])
+		},
+		'因子': () => {
+			return new SUN.ChooseOne([
+				new SUN.MatchToken("标识符"),
+				new SUN.MatchToken("整数"),
+				new SUN.Match([
+					new SUN.MatchToken("("),
+					new SUN.MatchTerm("表达式"),
+					new SUN.MatchToken(")"),
+				])
+			])
+		},
+		"加法运算符": () => {
+			return new SUN.ChooseOne([
+				new SUN.MatchToken("+"),
+				new SUN.MatchToken("-")
+			])
+		},
+		"乘法运算符": () => {
+			return new SUN.ChooseOne([
+				new SUN.MatchToken("*"),
+				new SUN.MatchToken("/")
+			])
+		},
+	}, "表达式", true)
+	let table = new_lang.toLL1Table()
+	new_lang.print()
+	console.log(new_lang)
+	console.table(table.toMDTable())
+
 
 	let LL1EXP = SUN.PL0();
 	LL1EXP.print();
-	let LL1EXP1 = SUN.LL1PL0();
+	let LL1EXP1 = SUN.LL1Calculator();
 	LL1EXP1.print();
 	console.log(LL1EXP1)
 	let LL1TABLE = LL1EXP1.toLL1Table()
@@ -110,7 +184,7 @@ var a : int[3], b : int = a[1] + "";.
 		ans = []
 
 		// let ast = PL0.match(lexer.tokens);
-		let ast = LL1EXP.match(lexer.tokens);
+		let ast = table.match(lexer.tokens);
 		console.log(ast);
 		// let ast = EXP.match(lexer.tokens);
 		// console.log(EXP.match(lexer.tokens));
