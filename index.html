@@ -69,7 +69,6 @@ var a : int[3], b : int = a[1] + "";.
 		window.input(cm.getValue())
 	})
 
-	// let PL0 = SUN.PL0()
 	let new_lang = new SUN.Language("Expression XP", {
 		'表达式': () => {
 			return new SUN.ChooseOne([
@@ -139,20 +138,54 @@ var a : int[3], b : int = a[1] + "";.
 			])
 		},
 	}, "表达式", true)
-	let table = new_lang.toLL1Table()
-	new_lang.print()
-	console.log(new_lang)
-	console.table(table.toMDTable())
 
 
-	let LL1EXP = SUN.PL0();
-	LL1EXP.print();
-	let LL1EXP1 = SUN.LL1Calculator();
-	LL1EXP1.print();
-	console.log(LL1EXP1)
-	let LL1TABLE = LL1EXP1.toLL1Table()
-	// console.log(LL1EXP)
-	console.table(LL1TABLE.toMDTable())
+	let Parser = SUN.Calculator();
+	// let LL1EXP1 = SUN.Calculator();
+
+	let visitor = {
+		binop: {
+			walk(node, path) {
+				return ['sub']
+			},
+			transform(path) {
+				const OP = {
+					'+': (a, b) => {
+						return a + b
+					},
+					'-': (a, b) => {
+						return a - b
+					},
+					'*': (a, b) => {
+						return a * b
+					},
+					'/': (a, b) => {
+						return a / b
+					},
+				}
+				path.node.$value = OP[path.node.value](path.node.sub[0].$value, path.node.sub[1].$value)
+				return path.node
+			}
+		},
+		value: {
+			walk(node, path) {
+				return []
+			},
+			transform(path) {
+				path.node.$value = path.node.value
+				return path.node
+			}
+		},
+		identifier: {
+			walk(node, path) {
+				return []
+			},
+			transform(path) {
+				path.node.$value = prompt(`input value of ${path.node.value}`)
+				return path.node
+			}
+		}
+	}
 
 	window.test = function () {
 		let str = eval(document.getElementById('count').innerText)
@@ -170,10 +203,8 @@ var a : int[3], b : int = a[1] + "";.
 		lexer.errors.forEach(e => {
 			let [s, starter, _] = source.get_ScriptPortion(e.start, e.end, '^', "red")
 			ans.push(s + `${starter}<a style="color: red;">${e.type} ${e.message}</a>\n`);
-			// ans.push(e.type + ' : ' + e.message + "\n" + source.get_ScriptPortion(e.start, e.end, '^', 'red')[0]);
 		})
 
-		// console.log(lexer.tokens)
 
 		lexer.tokens.forEach(t => {
 			ans.push(source.get_ScriptPortion(t.start, t.end, undefined, "rgb(0,255,0)", false)[0] + ` (${t.type}, '${t.value}')` + '\n');
@@ -183,11 +214,8 @@ var a : int[3], b : int = a[1] + "";.
 
 		ans = []
 
-		// let ast = PL0.match(lexer.tokens);
-		let ast = table.match(lexer.tokens);
+		let ast = Parser.match(lexer.tokens);
 		console.log(ast);
-		// let ast = EXP.match(lexer.tokens);
-		// console.log(EXP.match(lexer.tokens));
 
 		if (ast[3] !== undefined) {
 			let err = ast[3];
@@ -200,14 +228,13 @@ var a : int[3], b : int = a[1] + "";.
 			ans = ans.reverse()
 			document.getElementById('parser').innerHTML = ans.join('\n')
 			document.getElementById('count').innerText = "no code translated"
-			// document.getElementById('ast').innerText = 'Error !'
 		}
 		else {
 			document.getElementById('parser').innerHTML = '<a style="color: rgb(0,255,0);">OK</a>'
 			if (ast[2] !== undefined) {
-				let walker = new SUN.Walker(ast[2][1], SUN.PL0Visitors, lexer.tokens, source);
+				let walker = new SUN.Walker(ast[2][1], visitor, lexer.tokens, source);
 				let [astnew, err] = walker.walk();
-				// console.log(err)
+				console.log(astnew)
 				let ans = []
 				err.forEach((err) => {
 					console.log(err);
@@ -216,7 +243,6 @@ var a : int[3], b : int = a[1] + "";.
 					ans.push(`${len.slice(0, len.length - 2).map(() => " ").join('')}.\n` + s + `${starter}<a style="color: ${err.info === undefined ? "red" : err.info.color};">${err.type}\n${err.message.split('\n').map(i => `<a style="color: white;">${starter}</a>` + `${i}`).join('\n')}</a>\n`);
 				})
 
-				// console.log(ans)
 				if (ans.length > 0) {
 					document.getElementById('parser').innerHTML = ans.join('\n\n')
 				}
